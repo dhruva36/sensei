@@ -5,7 +5,16 @@ import { useRouter } from "next/navigation";
 import { Plane, Users, ArrowRight, Check } from "lucide-react";
 import { useUsername } from "@/lib/identity";
 import { createTrip, joinTripByCode } from "@/app/actions";
-import { Button, Card, ErrorText, Input, Label, Spinner } from "@/components/ui";
+import {
+  Button,
+  Card,
+  ErrorText,
+  Input,
+  Label,
+  Select,
+  Spinner,
+} from "@/components/ui";
+import { Reveal } from "@/components/motion";
 
 const CURRENCIES = ["USD", "EUR", "GBP", "INR", "JPY", "AUD", "CAD"];
 
@@ -15,16 +24,18 @@ export default function Home() {
   const [draftName, setDraftName] = useState("");
 
   return (
-    <main className="mx-auto flex w-full max-w-md flex-1 flex-col gap-6 px-5 py-10">
-      <header className="text-center">
-        <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-indigo-600 text-white shadow-lg shadow-indigo-200">
-          <Plane className="h-7 w-7" />
-        </div>
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-          Sensei
+    <div className="mx-auto flex w-full max-w-2xl flex-1 flex-col gap-6 px-5 pb-16 pt-10">
+      {/* Hero */}
+      <header>
+        <p className="accent-hand text-2xl text-[var(--gold)]">
+          Trips with friends, settled simply
+        </p>
+        <h1 className="mt-1 text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
+          Split the bill. Settle in the fewest payments.
         </h1>
-        <p className="mt-1 text-sm text-slate-500">
-          Split trip expenses with friends and settle up in the fewest payments.
+        <p className="mt-4 max-w-xl text-lg text-[var(--text-dim)]">
+          Add who paid for what, however you like to split it, and Sensei works
+          out exactly who pays whom — with the smallest number of transfers.
         </p>
       </header>
 
@@ -50,19 +61,19 @@ export default function Home() {
                 Save
               </Button>
             </div>
-            <p className="mt-2 text-xs text-slate-400">
+            <p className="mt-2 text-xs text-[var(--text-faint)]">
               Stored on this device — no account needed.
             </p>
           </form>
         ) : (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-100 text-sm font-semibold text-indigo-700">
+              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--ink)] text-sm font-semibold text-[var(--gold)]">
                 {name.slice(0, 2).toUpperCase()}
               </div>
               <div>
-                <p className="text-xs text-slate-400">You are</p>
-                <p className="font-semibold text-slate-900">{name}</p>
+                <p className="text-xs text-[var(--text-faint)]">You are</p>
+                <p className="font-semibold text-[var(--text)]">{name}</p>
               </div>
             </div>
             <Button
@@ -80,23 +91,19 @@ export default function Home() {
       </Card>
 
       {name ? (
-        <div className="flex flex-col gap-4 animate-fade-in">
+        <Reveal className="flex flex-col gap-4" delay={0.04}>
           <CreateTripCard
             currentName={name}
             onCreated={(tripId) => router.push(`/trips/${tripId}`)}
           />
           <JoinTripCard onJoined={(tripId) => router.push(`/trips/${tripId}`)} />
-        </div>
+        </Reveal>
       ) : (
-        <p className="text-center text-sm text-slate-400">
+        <p className="text-center text-sm text-[var(--text-faint)]">
           Set your name to create or join a trip.
         </p>
       )}
-
-      <footer className="mt-auto pt-6 text-center text-xs text-slate-400">
-        No logins. Share a join code and everyone&apos;s in.
-      </footer>
-    </main>
+    </div>
   );
 }
 
@@ -132,8 +139,8 @@ function CreateTripCard({
   return (
     <Card className="p-5">
       <div className="mb-3 flex items-center gap-2">
-        <Plane className="h-4 w-4 text-indigo-600" />
-        <h2 className="font-semibold text-slate-900">Start a new trip</h2>
+        <Plane className="h-4 w-4 text-[var(--accent)]" />
+        <h2 className="text-lg font-semibold">Start a new trip</h2>
       </div>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <div>
@@ -147,18 +154,17 @@ function CreateTripCard({
         </div>
         <div>
           <Label htmlFor="currency">Currency</Label>
-          <select
+          <Select
             id="currency"
             value={currency}
             onChange={(e) => setCurrency(e.target.value)}
-            className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
           >
             {CURRENCIES.map((c) => (
               <option key={c} value={c}>
                 {c}
               </option>
             ))}
-          </select>
+          </Select>
         </div>
         <Button type="submit" disabled={pending || !tripName.trim()}>
           {pending ? <Spinner /> : <ArrowRight className="h-4 w-4" />}
@@ -191,15 +197,15 @@ function JoinTripCard({ onJoined }: { onJoined: (tripId: string) => void }) {
   return (
     <Card className="p-5">
       <div className="mb-3 flex items-center gap-2">
-        <Users className="h-4 w-4 text-indigo-600" />
-        <h2 className="font-semibold text-slate-900">Join with a code</h2>
+        <Users className="h-4 w-4 text-[var(--accent)]" />
+        <h2 className="text-lg font-semibold">Join with a code</h2>
       </div>
       <form onSubmit={submit} className="flex gap-2">
         <Input
           placeholder="ABC123"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          className="font-mono tracking-widest uppercase"
+          className="tnum uppercase tracking-widest"
           maxLength={8}
         />
         <Button type="submit" variant="secondary" disabled={pending || !code.trim()}>

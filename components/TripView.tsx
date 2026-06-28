@@ -11,17 +11,12 @@ import {
   Receipt,
   Trash2,
   UserPlus,
-  Wallet,
   Users,
 } from "lucide-react";
 import type { Balance, Member, Transaction, Transfer, Trip } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { useUsername } from "@/lib/identity";
-import {
-  addMember,
-  deleteTransaction,
-  removeMember,
-} from "@/app/actions";
+import { addMember, deleteTransaction, removeMember } from "@/app/actions";
 import {
   Button,
   Card,
@@ -30,6 +25,7 @@ import {
   SectionTitle,
   Spinner,
 } from "@/components/ui";
+import { AnimatedNumber, Stagger, StaggerItem } from "@/components/motion";
 import ExpenseForm from "@/components/ExpenseForm";
 
 const SPLIT_LABEL: Record<Transaction["split_type"], string> = {
@@ -68,6 +64,11 @@ export default function TripView({
     [members, username],
   );
 
+  const totalSpent = useMemo(
+    () => transactions.reduce((s, t) => s + t.amount, 0),
+    [transactions],
+  );
+
   // If this device has a username but isn't yet a member (joined via code),
   // add them automatically.
   useEffect(() => {
@@ -79,23 +80,46 @@ export default function TripView({
   }, [username, currentMember, trip.id, router]);
 
   return (
-    <main className="mx-auto w-full max-w-md flex-1 px-5 py-6">
+    <div className="mx-auto w-full max-w-2xl px-5 pb-16 pt-6">
       <Link
         href="/"
-        className="mb-4 inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700"
+        className="pressable mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--text-dim)] transition-colors hover:text-[var(--text)]"
       >
         <ArrowLeft className="h-4 w-4" /> All trips
       </Link>
 
       <TripHeader trip={trip} memberCount={members.length} />
 
+      <Stagger className="mt-3 grid grid-cols-2 gap-3">
+        <StaggerItem>
+          <Card className="p-4">
+            <AnimatedNumber
+              value={totalSpent}
+              format={(n) => formatMoney(n, trip.currency)}
+              className="text-2xl font-semibold"
+            />
+            <div className="mt-1 text-sm text-[var(--text-dim)]">Total spent</div>
+          </Card>
+        </StaggerItem>
+        <StaggerItem>
+          <Card className="p-4">
+            <AnimatedNumber
+              value={transactions.length}
+              format={(n) => Math.round(n).toString()}
+              className="text-2xl font-semibold"
+            />
+            <div className="mt-1 text-sm text-[var(--text-dim)]">Expenses</div>
+          </Card>
+        </StaggerItem>
+      </Stagger>
+
       {username.trim() ? (
-        <p className="mb-5 mt-3 text-sm text-slate-500">
+        <p className="mb-1 mt-4 text-sm text-[var(--text-dim)]">
           Acting as{" "}
-          <span className="font-semibold text-slate-800">{username}</span>
+          <span className="font-semibold text-[var(--text)]">{username}</span>
         </p>
       ) : (
-        <Card className="mb-5 mt-3 border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+        <Card className="mb-1 mt-4 border-[color-mix(in_srgb,var(--gold)_40%,transparent)] bg-[color-mix(in_srgb,var(--gold)_10%,var(--surface))] p-3 text-sm text-[var(--text)]">
           You haven&apos;t set a name.{" "}
           <Link href="/" className="font-semibold underline">
             Set one
@@ -104,13 +128,15 @@ export default function TripView({
         </Card>
       )}
 
-      <BalancesCard
-        balances={balances}
-        transfers={transfers}
-        nameById={nameById}
-        currency={trip.currency}
-        currentMemberId={currentMember?.id ?? null}
-      />
+      <div className="mt-5">
+        <BalancesCard
+          balances={balances}
+          transfers={transfers}
+          nameById={nameById}
+          currency={trip.currency}
+          currentMemberId={currentMember?.id ?? null}
+        />
+      </div>
 
       <div className="mt-6">
         <SectionTitle
@@ -156,7 +182,7 @@ export default function TripView({
           }}
         />
       ) : null}
-    </main>
+    </div>
   );
 }
 
@@ -175,23 +201,25 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
 
   return (
     <Card className="overflow-hidden">
-      <div className="bg-indigo-600 px-5 py-4 text-white">
-        <h1 className="text-xl font-bold">{trip.name}</h1>
-        <p className="mt-0.5 flex items-center gap-1.5 text-sm text-indigo-100">
+      <div className="bg-[var(--ink)] px-5 py-4">
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--surface)]">
+          {trip.name}
+        </h1>
+        <p className="mt-0.5 flex items-center gap-1.5 text-sm text-[color-mix(in_srgb,var(--surface)_70%,transparent)]">
           <Users className="h-3.5 w-3.5" /> {memberCount} members · {trip.currency}
         </p>
       </div>
       <div className="flex items-center justify-between gap-2 px-5 py-3">
         <div>
-          <p className="text-xs text-slate-400">Join code</p>
-          <p className="font-mono text-lg font-semibold tracking-widest text-slate-900">
+          <p className="text-xs text-[var(--text-faint)]">Join code</p>
+          <p className="tnum text-lg font-semibold tracking-widest text-[var(--text)]">
             {trip.join_code}
           </p>
         </div>
         <div className="flex gap-2">
           <Button size="sm" variant="secondary" onClick={() => copy("code")}>
             {copied === "code" ? (
-              <Check className="h-4 w-4 text-emerald-600" />
+              <Check className="h-4 w-4 text-[var(--pos)]" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
@@ -199,7 +227,7 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
           </Button>
           <Button size="sm" variant="secondary" onClick={() => copy("link")}>
             {copied === "link" ? (
-              <Check className="h-4 w-4 text-emerald-600" />
+              <Check className="h-4 w-4 text-[var(--pos)]" />
             ) : (
               <Copy className="h-4 w-4" />
             )}
@@ -228,37 +256,34 @@ function BalancesCard({
 
   return (
     <Card className="p-5">
-      <div className="mb-3 flex items-center gap-2">
-        <Wallet className="h-4 w-4 text-indigo-600" />
-        <h2 className="font-semibold text-slate-900">Settle up</h2>
-      </div>
+      <h2 className="mb-3 text-xl font-semibold tracking-tight">Settle up</h2>
 
       {transfers.length === 0 ? (
-        <p className="rounded-xl bg-emerald-50 px-4 py-6 text-center text-sm font-medium text-emerald-700">
-          🎉 All settled up — nobody owes anything.
+        <p className="rounded-xl bg-[color-mix(in_srgb,var(--pos)_10%,var(--surface))] px-4 py-6 text-center text-sm font-medium text-[var(--pos)]">
+          All settled up — nobody owes anything.
         </p>
       ) : (
         <ul className="space-y-2">
           {transfers.map((t, i) => (
             <li
               key={i}
-              className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3 text-sm"
+              className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] px-4 py-3 text-sm"
             >
-              <span className="text-slate-700">
-                <span className="font-semibold text-slate-900">
+              <span className="text-[var(--text-dim)]">
+                <span className="font-semibold text-[var(--text)]">
                   {nameById[t.from] ?? "?"}
                 </span>{" "}
                 pays{" "}
-                <span className="font-semibold text-slate-900">
+                <span className="font-semibold text-[var(--text)]">
                   {nameById[t.to] ?? "?"}
                 </span>
               </span>
-              <span className="font-semibold text-indigo-600">
+              <span className="tnum font-semibold text-[var(--accent)]">
                 {formatMoney(t.amount, currency)}
               </span>
             </li>
           ))}
-          <li className="pt-1 text-center text-xs text-slate-400">
+          <li className="pt-1 text-center text-xs text-[var(--text-faint)]">
             Minimum {transfers.length} payment{transfers.length > 1 ? "s" : ""} to
             settle everyone.
           </li>
@@ -266,8 +291,8 @@ function BalancesCard({
       )}
 
       {nonZero.length > 0 ? (
-        <div className="mt-4 border-t border-slate-100 pt-4">
-          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-slate-400">
+        <div className="mt-4 border-t border-[var(--border)] pt-4">
+          <p className="mb-2 text-xs font-medium uppercase tracking-wide text-[var(--text-faint)]">
             Balances
           </p>
           <ul className="space-y-1.5">
@@ -278,14 +303,20 @@ function BalancesCard({
                   key={b.memberId}
                   className="flex items-center justify-between text-sm"
                 >
-                  <span className="text-slate-700">
+                  <span className="text-[var(--text-dim)]">
                     {nameById[b.memberId] ?? "?"}
                     {b.memberId === currentMemberId ? (
-                      <span className="ml-1 text-xs text-slate-400">(you)</span>
+                      <span className="ml-1 text-xs text-[var(--text-faint)]">
+                        (you)
+                      </span>
                     ) : null}
                   </span>
                   <span
-                    className={owed ? "text-emerald-600" : "text-red-500"}
+                    className={
+                      owed
+                        ? "tnum text-[var(--pos)]"
+                        : "tnum text-[var(--neg)]"
+                    }
                     title={owed ? "gets back" : "owes"}
                   >
                     {owed ? "+" : "−"}
@@ -319,9 +350,9 @@ function ExpenseList({
   if (transactions.length === 0) {
     return (
       <Card className="flex flex-col items-center gap-2 px-5 py-10 text-center">
-        <Receipt className="h-8 w-8 text-slate-300" />
-        <p className="text-sm text-slate-500">No expenses yet.</p>
-        <p className="text-xs text-slate-400">
+        <Receipt className="h-8 w-8 text-[var(--text-faint)]" />
+        <p className="text-sm text-[var(--text-dim)]">No expenses yet.</p>
+        <p className="text-xs text-[var(--text-faint)]">
           Add the first one to start tracking.
         </p>
       </Card>
@@ -338,30 +369,30 @@ function ExpenseList({
   }
 
   return (
-    <Card className="divide-y divide-slate-100">
+    <Card className="divide-y divide-[var(--border)]">
       {transactions.map((t) => (
         <div
           key={t.id}
           className="flex items-center justify-between gap-3 px-4 py-3"
         >
           <div className="min-w-0">
-            <p className="truncate font-medium text-slate-900">
+            <p className="truncate font-medium text-[var(--text)]">
               {t.description}
             </p>
-            <p className="truncate text-xs text-slate-500">
+            <p className="truncate text-xs text-[var(--text-dim)]">
               {nameById[t.paid_by] ?? "?"} paid · {SPLIT_LABEL[t.split_type]} ·{" "}
               {t.splits.length} people
             </p>
           </div>
           <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-900">
+            <span className="tnum font-semibold text-[var(--text)]">
               {formatMoney(t.amount, currency)}
             </span>
             <button
               aria-label="Delete expense"
               onClick={() => onDelete(t.id)}
               disabled={pending && deletingId === t.id}
-              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+              className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)] disabled:opacity-50"
             >
               {pending && deletingId === t.id ? (
                 <Spinner className="h-4 w-4" />
@@ -420,22 +451,22 @@ function MembersCard({
         {members.map((m) => (
           <li
             key={m.id}
-            className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2"
+            className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] px-3 py-2"
           >
-            <span className="flex items-center gap-2.5 text-sm text-slate-800">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-indigo-100 text-xs font-semibold text-indigo-700">
+            <span className="flex items-center gap-2.5 text-sm text-[var(--text)]">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--ink)] text-xs font-semibold text-[var(--gold)]">
                 {m.name.slice(0, 2).toUpperCase()}
               </span>
               {m.name}
               {m.id === currentMemberId ? (
-                <span className="text-xs text-slate-400">(you)</span>
+                <span className="text-xs text-[var(--text-faint)]">(you)</span>
               ) : null}
             </span>
             <button
               aria-label={`Remove ${m.name}`}
               onClick={() => remove(m.id)}
               disabled={pending}
-              className="rounded-lg p-1.5 text-slate-300 transition hover:bg-red-50 hover:text-red-500 disabled:opacity-50"
+              className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)] disabled:opacity-50"
             >
               <Trash2 className="h-4 w-4" />
             </button>

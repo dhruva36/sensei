@@ -16,17 +16,19 @@ export function Button({
   ...props
 }: ButtonProps) {
   const base =
-    "inline-flex items-center justify-center gap-2 rounded-xl font-medium transition active:scale-[.98] disabled:cursor-not-allowed disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-indigo-500";
+    "pressable inline-flex items-center justify-center gap-2 rounded-xl font-medium transition-colors duration-[var(--dur-2)] disabled:cursor-not-allowed disabled:opacity-45";
   const sizes = {
     sm: "h-9 px-3 text-sm",
     md: "h-11 px-4 text-sm",
   };
   const variants = {
-    primary: "bg-indigo-600 text-white shadow-sm hover:bg-indigo-500",
+    primary:
+      "bg-[var(--ink)] text-[var(--surface)] hover:bg-[color-mix(in_srgb,var(--ink)_88%,white)]",
     secondary:
-      "bg-white text-slate-800 ring-1 ring-inset ring-slate-200 hover:bg-slate-50",
-    ghost: "text-slate-600 hover:bg-slate-100",
-    danger: "bg-white text-red-600 ring-1 ring-inset ring-red-200 hover:bg-red-50",
+      "bg-[var(--surface)] text-[var(--text)] border border-[var(--border)] hover:border-[var(--border-strong)]",
+    ghost: "text-[var(--text-dim)] hover:bg-[var(--surface-2)] hover:text-[var(--text)]",
+    danger:
+      "bg-[var(--surface)] text-[var(--neg)] border border-[color-mix(in_srgb,var(--neg)_30%,transparent)] hover:bg-[color-mix(in_srgb,var(--neg)_8%,var(--surface))]",
   };
   return (
     <button
@@ -44,7 +46,7 @@ export const Input = React.forwardRef<
     <input
       ref={ref}
       className={cn(
-        "h-11 w-full rounded-xl border border-slate-200 bg-white px-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100",
+        "h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3.5 text-sm text-[var(--text)] placeholder:text-[var(--text-faint)] transition-colors focus:border-[var(--accent)] focus:outline-none focus:ring-4 focus:ring-[var(--accent-dim)]",
         className,
       )}
       {...props}
@@ -52,13 +54,31 @@ export const Input = React.forwardRef<
   );
 });
 
+export function Select({
+  className,
+  ...props
+}: React.SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <select
+      className={cn(
+        "h-11 w-full rounded-xl border border-[var(--border)] bg-[var(--surface)] px-3 text-sm text-[var(--text)] transition-colors focus:border-[var(--accent)] focus:outline-none focus:ring-4 focus:ring-[var(--accent-dim)]",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
+
 export function Label({
   className,
   ...props
 }: React.LabelHTMLAttributes<HTMLLabelElement>) {
   return (
     <label
-      className={cn("mb-1.5 block text-sm font-medium text-slate-700", className)}
+      className={cn(
+        "mb-1.5 block text-sm font-medium text-[var(--text-dim)]",
+        className,
+      )}
       {...props}
     />
   );
@@ -71,7 +91,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-slate-200 bg-white shadow-sm",
+        "rounded-xl border border-[var(--border)] bg-[var(--surface)]",
         className,
       )}
       {...props}
@@ -91,9 +111,11 @@ export function SectionTitle({
   return (
     <div className="mb-3 flex items-end justify-between gap-3">
       <div>
-        <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+        <h2 className="text-xl font-semibold tracking-tight text-[var(--text)]">
+          {title}
+        </h2>
         {subtitle ? (
-          <p className="text-sm text-slate-500">{subtitle}</p>
+          <p className="text-sm text-[var(--text-dim)]">{subtitle}</p>
         ) : null}
       </div>
       {action}
@@ -103,7 +125,7 @@ export function SectionTitle({
 
 export function ErrorText({ children }: { children?: React.ReactNode }) {
   if (!children) return null;
-  return <p className="mt-2 text-sm text-red-600">{children}</p>;
+  return <p className="mt-2 text-sm text-[var(--neg)]">{children}</p>;
 }
 
 export function Spinner({ className }: { className?: string }) {

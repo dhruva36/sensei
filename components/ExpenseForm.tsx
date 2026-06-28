@@ -6,7 +6,15 @@ import type { Member, SplitType } from "@/lib/types";
 import { computeOwed, type SplitPart } from "@/lib/splits";
 import { formatMoney, fromCents } from "@/lib/money";
 import { addTransaction } from "@/app/actions";
-import { Button, ErrorText, Input, Label, Spinner, cn } from "@/components/ui";
+import {
+  Button,
+  ErrorText,
+  Input,
+  Label,
+  Select,
+  Spinner,
+  cn,
+} from "@/components/ui";
 
 const TABS: { key: SplitType; label: string }[] = [
   { key: "equal", label: "Equal" },
@@ -55,7 +63,6 @@ export default function ExpenseForm({
   const selectedMembers = members.filter((m) => selected.has(m.id));
 
   // Build split parts for the current mode (used for both preview and submit).
-  // Cheap to recompute each render, so no memoization needed.
   const parts: SplitPart[] = selectedMembers.map((m) => {
     let weight = 1;
     if (splitType === "amount") weight = parseFloat(amounts[m.id] ?? "") || 0;
@@ -116,18 +123,18 @@ export default function ExpenseForm({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-end justify-center bg-slate-900/40 p-0 sm:items-center sm:p-4"
+      className="fixed inset-0 z-50 flex items-end justify-center bg-[color-mix(in_srgb,var(--ink)_45%,transparent)] p-0 sm:items-center sm:p-4"
       onClick={onClose}
     >
       <div
-        className="animate-fade-in flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:rounded-3xl"
+        className="animate-fade-in flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-lg font-semibold text-slate-900">Add expense</h2>
+        <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
+          <h2 className="text-lg font-semibold tracking-tight">Add expense</h2>
           <button
             onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100"
+            className="pressable rounded-lg p-1.5 text-[var(--text-faint)] hover:bg-[var(--surface-2)]"
             aria-label="Close"
           >
             <X className="h-5 w-5" />
@@ -158,39 +165,39 @@ export default function ExpenseForm({
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
+                className="tnum"
               />
             </div>
             <div className="flex-1">
               <Label htmlFor="payer">Paid by</Label>
-              <select
+              <Select
                 id="payer"
                 value={paidBy}
                 onChange={(e) => setPaidBy(e.target.value)}
-                className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
               >
                 {members.map((m) => (
                   <option key={m.id} value={m.id}>
                     {m.name}
                   </option>
                 ))}
-              </select>
+              </Select>
             </div>
           </div>
 
-          {/* Split type tabs */}
+          {/* Split type segmented control */}
           <div>
             <Label>Split</Label>
-            <div className="flex rounded-xl bg-slate-100 p-1">
+            <div className="flex gap-1 rounded-xl bg-[var(--surface-2)] p-1">
               {TABS.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
                   onClick={() => setSplitType(tab.key)}
                   className={cn(
-                    "flex-1 rounded-lg py-2 text-sm font-medium transition",
+                    "pressable flex-1 rounded-lg py-2 text-sm font-medium transition-colors duration-[var(--dur-2)]",
                     splitType === tab.key
-                      ? "bg-white text-indigo-600 shadow-sm"
-                      : "text-slate-500 hover:text-slate-700",
+                      ? "bg-[var(--surface)] text-[var(--text)] shadow-sm"
+                      : "text-[var(--text-dim)] hover:text-[var(--text)]",
                   )}
                 >
                   {tab.label}
@@ -208,10 +215,10 @@ export default function ExpenseForm({
                 <div
                   key={m.id}
                   className={cn(
-                    "flex items-center gap-3 rounded-xl border px-3 py-2.5 transition",
+                    "flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-colors",
                     isSel
-                      ? "border-indigo-200 bg-indigo-50/40"
-                      : "border-slate-200 bg-white",
+                      ? "border-[color-mix(in_srgb,var(--accent)_35%,transparent)] bg-[var(--accent-dim)]"
+                      : "border-[var(--border)] bg-[var(--surface)]",
                   )}
                 >
                   <label className="flex flex-1 cursor-pointer items-center gap-2.5">
@@ -219,15 +226,15 @@ export default function ExpenseForm({
                       type="checkbox"
                       checked={isSel}
                       onChange={() => toggle(m.id)}
-                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                      className="h-4 w-4 rounded border-[var(--border-strong)] accent-[var(--accent)]"
                     />
-                    <span className="text-sm font-medium text-slate-800">
+                    <span className="text-sm font-medium text-[var(--text)]">
                       {m.name}
                     </span>
                   </label>
 
                   {isSel && splitType === "equal" ? (
-                    <span className="text-sm text-slate-500">
+                    <span className="tnum text-sm text-[var(--text-dim)]">
                       {owed != null ? formatMoney(owed, currency) : "—"}
                     </span>
                   ) : null}
@@ -240,7 +247,7 @@ export default function ExpenseForm({
                       onChange={(e) =>
                         setAmounts((p) => ({ ...p, [m.id]: e.target.value }))
                       }
-                      className="h-9 w-24 rounded-lg border border-slate-200 px-2.5 text-right text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                      className="tnum h-9 w-24 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-right text-sm focus:border-[var(--accent)] focus:outline-none focus:ring-4 focus:ring-[var(--accent-dim)]"
                     />
                   ) : null}
 
@@ -253,9 +260,9 @@ export default function ExpenseForm({
                         onChange={(e) =>
                           setShares((p) => ({ ...p, [m.id]: e.target.value }))
                         }
-                        className="h-9 w-16 rounded-lg border border-slate-200 px-2.5 text-right text-sm focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-100"
+                        className="tnum h-9 w-16 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2.5 text-right text-sm focus:border-[var(--accent)] focus:outline-none focus:ring-4 focus:ring-[var(--accent-dim)]"
                       />
-                      <span className="w-16 text-right text-sm text-slate-500">
+                      <span className="tnum w-16 text-right text-sm text-[var(--text-dim)]">
                         {owed != null ? formatMoney(owed, currency) : "—"}
                       </span>
                     </div>
@@ -271,12 +278,13 @@ export default function ExpenseForm({
               className={cn(
                 "text-center text-sm",
                 Math.abs(customSum - amountNum) < 0.005
-                  ? "text-emerald-600"
-                  : "text-amber-600",
+                  ? "text-[var(--pos)]"
+                  : "text-[var(--gold)]",
               )}
             >
-              {formatMoney(customSum, currency)} of{" "}
-              {formatMoney(amountNum, currency)} assigned
+              <span className="tnum">{formatMoney(customSum, currency)}</span> of{" "}
+              <span className="tnum">{formatMoney(amountNum, currency)}</span>{" "}
+              assigned
               {Math.abs(customSum - amountNum) >= 0.005
                 ? ` · ${formatMoney(amountNum - customSum, currency)} left`
                 : " ✓"}
@@ -284,14 +292,14 @@ export default function ExpenseForm({
           ) : null}
 
           {splitType === "equal" ? (
-            <p className="text-center text-xs text-slate-400">
+            <p className="text-center text-xs text-[var(--text-faint)]">
               Split equally between {selectedMembers.length} selected.
             </p>
           ) : null}
 
           <ErrorText>{error}</ErrorText>
 
-          <div className="sticky bottom-0 -mx-5 mt-auto flex gap-3 border-t border-slate-100 bg-white px-5 pb-1 pt-3">
+          <div className="sticky bottom-0 -mx-5 mt-auto flex gap-3 border-t border-[var(--border)] bg-[var(--surface)] px-5 pb-1 pt-3">
             <Button
               type="button"
               variant="secondary"

@@ -1,39 +1,98 @@
 @import "tailwindcss";
 
+/* ---- design tokens : warm-paper light theme (matches the tn_politics dashboard) ---- */
+:root {
+  --bg: #f3f2ec;           /* warm paper page */
+  --surface: #fbfaf6;      /* card — near white, warm */
+  --surface-2: #e9e7df;    /* sunken / hover */
+  --ink: #16150f;          /* warm near-black ink */
+  --text: #16150f;         /* warm ink text */
+  --text-dim: #57554c;     /* muted */
+  --text-faint: #8c897e;   /* faint */
+  --border: rgba(22, 21, 15, 0.12);
+  --border-strong: rgba(22, 21, 15, 0.22);
+  --accent: #1c5cff;       /* subtle blue highlight */
+  --accent-dim: rgba(28, 92, 255, 0.12);
+  --gold: #a9791f;         /* deeper gold, legible on paper */
+
+  /* settlement semantics (app-specific) */
+  --pos: #2f7d4f;          /* credit — "gets back" */
+  --neg: #b3402e;          /* debt — "owes" */
+
+  /* motion (Emil Kowalski standards) */
+  --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+  --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+  --dur-1: 120ms;
+  --dur-2: 180ms;
+  --dur-3: 240ms;
+}
+
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-text: var(--text);
+  --color-dim: var(--text-dim);
+  --color-faint: var(--text-faint);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-gold: var(--gold);
+  --color-ink: var(--ink);
+  --color-pos: var(--pos);
+  --color-neg: var(--neg);
+  --font-display: var(--font-serif);
+  --font-body: var(--font-serif);
+  --font-accent: var(--font-caveat);
+  --font-numeral: var(--font-mono);
 }
 
 html {
+  background: var(--bg);
+  color-scheme: light;
   -webkit-text-size-adjust: 100%;
 }
 
 body {
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-serif), Georgia, serif;
+  -webkit-font-smoothing: antialiased;
+  font-optical-sizing: auto;
+  overflow-x: clip;
 }
 
-/* Respect users who prefer reduced motion. */
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
-  }
-}
+::selection { background: var(--accent-dim); }
+
+/* numerals / money use the mono, tabular for alignment */
+.tnum { font-family: var(--font-mono), ui-monospace, monospace; font-variant-numeric: tabular-nums; }
+.accent-hand { font-family: var(--font-caveat), cursive; }
+
+/* press feedback — applies to any pressable element */
+.pressable { transition: transform var(--dur-1) var(--ease-out); }
+.pressable:active { transform: scale(0.97); }
+
+/* keyboard focus ring (only for keyboard users) */
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 4px; }
+
+/* hide scrollbar on horizontally-scrollable rows */
+.no-scrollbar { scrollbar-width: none; -ms-overflow-style: none; }
+.no-scrollbar::-webkit-scrollbar { display: none; }
+
+/* a quiet, warm scrollbar */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
 
 @keyframes sensei-fade-in {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
+.animate-fade-in { animation: sensei-fade-in var(--dur-3) var(--ease-out); }
 
-.animate-fade-in {
-  animation: sensei-fade-in 0.2s ease-out;
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
