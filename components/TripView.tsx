@@ -16,6 +16,7 @@ import {
 import type { Balance, Member, Transaction, Transfer, Trip } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { useUsername } from "@/lib/identity";
+import { rememberTrip } from "@/lib/recentTrips";
 import { addMember, deleteTransaction, removeMember } from "@/app/actions";
 import {
   Button,
@@ -68,6 +69,17 @@ export default function TripView({
     () => transactions.reduce((s, t) => s + t.amount, 0),
     [transactions],
   );
+
+  // Remember this trip on the device so it shows up in "Your trips" on the home
+  // page — lets anyone reopen the event and add expenses whenever they like.
+  useEffect(() => {
+    rememberTrip({
+      id: trip.id,
+      name: trip.name,
+      joinCode: trip.join_code,
+      currency: trip.currency,
+    });
+  }, [trip.id, trip.name, trip.join_code, trip.currency]);
 
   // If this device has a username but isn't yet a member (joined via code),
   // add them automatically.

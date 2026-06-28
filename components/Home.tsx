@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plane, Users, ArrowRight, Check } from "lucide-react";
+import { Plane, Users, ArrowRight, Check, X, ChevronRight } from "lucide-react";
 import { useUsername } from "@/lib/identity";
+import { useRecentTrips, forgetTrip } from "@/lib/recentTrips";
 import { createTrip, joinTripByCode } from "@/app/actions";
 import {
   Button,
@@ -90,6 +92,8 @@ export default function Home() {
         )}
       </Card>
 
+      <YourTrips />
+
       {name ? (
         <Reveal className="flex flex-col gap-4" delay={0.04}>
           <CreateTripCard
@@ -104,6 +108,47 @@ export default function Home() {
         </p>
       )}
     </div>
+  );
+}
+
+function YourTrips() {
+  const trips = useRecentTrips();
+  if (trips.length === 0) return null;
+
+  return (
+    <Reveal>
+      <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-[var(--text-faint)]">
+        Your trips
+      </h2>
+      <Card className="divide-y divide-[var(--border)]">
+        {trips.map((t) => (
+          <div key={t.id} className="flex items-center gap-2 pr-2">
+            <Link
+              href={`/trips/${t.id}`}
+              className="pressable flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface-2)]"
+            >
+              <span className="min-w-0">
+                <span className="block truncate font-medium text-[var(--text)]">
+                  {t.name}
+                </span>
+                <span className="tnum text-xs tracking-widest text-[var(--text-faint)]">
+                  {t.joinCode} · {t.currency}
+                </span>
+              </span>
+              <ChevronRight className="h-4 w-4 shrink-0 text-[var(--text-faint)]" />
+            </Link>
+            <button
+              aria-label={`Forget ${t.name}`}
+              title="Remove from this device (doesn't delete the trip)"
+              onClick={() => forgetTrip(t.id)}
+              className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)]"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        ))}
+      </Card>
+    </Reveal>
   );
 }
 
