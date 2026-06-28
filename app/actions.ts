@@ -1,0 +1,210 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { getSupabase } from "@/lib/supabase/server";
+import { getTripByCode } from "@/lib/data";
+import { generateJoinCode, normalizeJoinCode } from "@/lib/joinCode";
+import { computeOwed, type SplitPart } from "@/lib/splits";
+import type { Member, SplitType } from "@/lib/types";
+
+export type ActionResult<T = undefined> =
+  | ({ ok: true } & (T extends undefined ? object : { data: T }))
+  | { ok: false; error: string };
+
+const UNIQUE_VIOLATION = "23505";
+
+/** Create a trip and add the creator as its first member. */
+export async function createTrip(input: {
+  name: string;
+  currency: string;
+  creatorName: string;
+}): Promise<ActionResult<{ tripId: string; joinCode: string }>> {
+  const name = input.name.trim();
+  const creatorName = input.creatorName.trim();
+  const currency = (input.currency || "USD").trim().toUpperCase();
+
+  if (!name) return { ok: false, error: "Please enter a trip name." };
+  if (!creatorName) return { ok: false, error: "Please set your name first." };
+
+  const supabase = getSupabase();
+
+  // Retry a few times in the (very unlikely) event of a join-code collision.
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const joinCode = generateJoinCode();
+    const { data, error } = await supabase
+      .from("trips")
+      .insert({ name, join_code: joinCode, currency })
+      .select("id, join_code")
+      .single();
+
+    if (error) {
+      if (error.code === UNIQUE_VIOLATION) continue;
+      return { ok: false, error: error.message };
+    }
+
+    const tripId = data.id as string;
+    const memberRes = await addMember(tripId, creatorName);
+    if (!memberRes.ok) return memberRes;
+
+    return { ok: true, data: { tripId, joinCode: data.join_code as string } };
+  }
+
+  return { ok: false, error: "Could not generate a unique join code. Try again." };
+}
+
+/** Look up a trip by its join code (used by the Join flow). */
+export async function joinTripByCode(
+  code: string,
+): Promise<ActionResult<{ tripId: string }>> {
+  const normalized = normalizeJoinCode(code);
+  if (!normalized) return { ok: false, error: "Please enter a join code." };
+
+  const trip = await getTripByCode(normalized);
+  if (!trip) return { ok: false, error: "No trip found for that code." };
+
+  return { ok: true, data: { tripId: trip.id } };
+}
+
+/** Add a member to a trip. Idempotent: returns the existing member by name. */
+export async function addMember(
+  tripId: string,
+  rawName: string,
+): Promise<ActionResult<Member>> {
+  const name = rawName.trim();
+  if (!name) return { ok: false, error: "Please enter a name." };
+
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("members")
+    .insert({ trip_id: tripId, name })
+    .select("*")
+    .single();
+
+  if (error) {
+    if (error.code === UNIQUE_VIOLATION) {
+      // Already a member — fetch and return them (case-insensitive match).
+      const { data: existing } = await supabase
+        .from("members")
+        .select("*")
+        .eq("trip_id", tripId)
+        .ilike("name", name)
+        .maybeSingle();
+      if (existing) {
+        revalidatePath(`/trips/${tripId}`);
+        return { ok: true, data: existing as Member };
+      }
+    }
+    return { ok: false, error: error.message };
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true, data: data as Member };
+}
+
+export async function removeMember(
+  tripId: string,
+  memberId: string,
+): Promise<ActionResult> {
+  const supabase = getSupabase();
+
+  // Block removal if the member is tied to any expense (as payer or participant).
+  const { count: paidCount } = await supabase
+    .from("transactions")
+    .select("id", { count: "exact", head: true })
+    .eq("trip_id", tripId)
+    .eq("paid_by", memberId);
+  const { count: splitCount } = await supabase
+    .from("transaction_splits")
+    .select("id", { count: "exact", head: true })
+    .eq("member_id", memberId);
+
+  if ((paidCount ?? 0) > 0 || (splitCount ?? 0) > 0) {
+    return {
+      ok: false,
+      error: "This member is part of existing expenses. Delete those first.",
+    };
+  }
+
+  const { error } = await supabase
+    .from("members")
+    .delete()
+    .eq("id", memberId)
+    .eq("trip_id", tripId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true };
+}
+
+export async function addTransaction(
+  tripId: string,
+  input: {
+    description: string;
+    amount: number;
+    paidBy: string;
+    splitType: SplitType;
+    parts: SplitPart[];
+  },
+): Promise<ActionResult> {
+  const description = input.description.trim();
+  if (!description) return { ok: false, error: "Please add a description." };
+  if (!(input.amount > 0))
+    return { ok: false, error: "Amount must be greater than zero." };
+  if (!input.paidBy) return { ok: false, error: "Choose who paid." };
+  if (input.parts.length === 0)
+    return { ok: false, error: "Select at least one person to split with." };
+
+  // Validate the split up front so we never persist an inconsistent expense.
+  try {
+    computeOwed(input.amount, input.splitType, input.parts);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+
+  const supabase = getSupabase();
+  const { data: txn, error: txnErr } = await supabase
+    .from("transactions")
+    .insert({
+      trip_id: tripId,
+      description,
+      amount: input.amount,
+      paid_by: input.paidBy,
+      split_type: input.splitType,
+    })
+    .select("id")
+    .single();
+  if (txnErr) return { ok: false, error: txnErr.message };
+
+  const rows = input.parts.map((p) => ({
+    transaction_id: txn.id,
+    member_id: p.memberId,
+    weight: p.weight,
+  }));
+  const { error: splitErr } = await supabase
+    .from("transaction_splits")
+    .insert(rows);
+  if (splitErr) {
+    // Roll back the orphaned transaction.
+    await supabase.from("transactions").delete().eq("id", txn.id);
+    return { ok: false, error: splitErr.message };
+  }
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true };
+}
+
+export async function deleteTransaction(
+  tripId: string,
+  transactionId: string,
+): Promise<ActionResult> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("transactions")
+    .delete()
+    .eq("id", transactionId)
+    .eq("trip_id", tripId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true };
+}
