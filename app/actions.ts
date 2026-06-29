@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { getSupabase } from "@/lib/supabase/server";
-import { getTripByCode } from "@/lib/data";
+import { getEventByCode } from "@/lib/data";
 import { generateJoinCode, normalizeJoinCode } from "@/lib/joinCode";
 import { computeOwed, type SplitPart } from "@/lib/splits";
 import type { Member, SplitType } from "@/lib/types";
@@ -13,17 +13,17 @@ export type ActionResult<T = undefined> =
 
 const UNIQUE_VIOLATION = "23505";
 
-/** Create a trip and add the creator as its first member. */
-export async function createTrip(input: {
+/** Create an event and add the creator as its first member. */
+export async function createEvent(input: {
   name: string;
   currency: string;
   creatorName: string;
-}): Promise<ActionResult<{ tripId: string; joinCode: string }>> {
+}): Promise<ActionResult<{ eventId: string; joinCode: string }>> {
   const name = input.name.trim();
   const creatorName = input.creatorName.trim();
   const currency = (input.currency || "USD").trim().toUpperCase();
 
-  if (!name) return { ok: false, error: "Please enter a trip name." };
+  if (!name) return { ok: false, error: "Please enter an event name." };
   if (!creatorName) return { ok: false, error: "Please set your name first." };
 
   const supabase = getSupabase();
@@ -32,7 +32,7 @@ export async function createTrip(input: {
   for (let attempt = 0; attempt < 5; attempt++) {
     const joinCode = generateJoinCode();
     const { data, error } = await supabase
-      .from("trips")
+      .from("events")
       .insert({ name, join_code: joinCode, currency })
       .select("id, join_code")
       .single();
@@ -42,61 +42,61 @@ export async function createTrip(input: {
       return { ok: false, error: error.message };
     }
 
-    const tripId = data.id as string;
-    const memberRes = await addMember(tripId, creatorName);
+    const eventId = data.id as string;
+    const memberRes = await addMember(eventId, creatorName);
     if (!memberRes.ok) return memberRes;
 
-    return { ok: true, data: { tripId, joinCode: data.join_code as string } };
+    return { ok: true, data: { eventId, joinCode: data.join_code as string } };
   }
 
   return { ok: false, error: "Could not generate a unique join code. Try again." };
 }
 
-/** Rename a trip. */
-export async function renameTrip(
-  tripId: string,
+/** Rename an event. */
+export async function renameEvent(
+  eventId: string,
   rawName: string,
 ): Promise<ActionResult> {
   const name = rawName.trim();
-  if (!name) return { ok: false, error: "Please enter a trip name." };
+  if (!name) return { ok: false, error: "Please enter an event name." };
 
   const supabase = getSupabase();
   const { error } = await supabase
-    .from("trips")
+    .from("events")
     .update({ name })
-    .eq("id", tripId);
+    .eq("id", eventId);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/events/${eventId}`);
   return { ok: true };
 }
 
-/** Delete a trip and everything in it (cascades to members/expenses/payments). */
-export async function deleteTrip(tripId: string): Promise<ActionResult> {
+/** Delete an event and everything in it (cascades to members/expenses/payments). */
+export async function deleteEvent(eventId: string): Promise<ActionResult> {
   const supabase = getSupabase();
-  const { error } = await supabase.from("trips").delete().eq("id", tripId);
+  const { error } = await supabase.from("events").delete().eq("id", eventId);
   if (error) return { ok: false, error: error.message };
 
   revalidatePath("/");
   return { ok: true };
 }
 
-/** Look up a trip by its join code (used by the Join flow). */
-export async function joinTripByCode(
+/** Look up an event by its join code (used by the Join flow). */
+export async function joinEventByCode(
   code: string,
-): Promise<ActionResult<{ tripId: string }>> {
+): Promise<ActionResult<{ eventId: string }>> {
   const normalized = normalizeJoinCode(code);
   if (!normalized) return { ok: false, error: "Please enter a join code." };
 
-  const trip = await getTripByCode(normalized);
-  if (!trip) return { ok: false, error: "No trip found for that code." };
+  const event = await getEventByCode(normalized);
+  if (!event) return { ok: false, error: "No event found for that code." };
 
-  return { ok: true, data: { tripId: trip.id } };
+  return { ok: true, data: { eventId: event.id } };
 }
 
-/** Add a member to a trip. Idempotent: returns the existing member by name. */
+/** Add a member to an event. Idempotent: returns the existing member by name. */
 export async function addMember(
-  tripId: string,
+  eventId: string,
   rawName: string,
 ): Promise<ActionResult<Member>> {
   const name = rawName.trim();
@@ -105,7 +105,7 @@ export async function addMember(
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("members")
-    .insert({ trip_id: tripId, name })
+    .insert({ event_id: eventId, name })
     .select("*")
     .single();
 
@@ -115,23 +115,23 @@ export async function addMember(
       const { data: existing } = await supabase
         .from("members")
         .select("*")
-        .eq("trip_id", tripId)
+        .eq("event_id", eventId)
         .ilike("name", name)
         .maybeSingle();
       if (existing) {
-        revalidatePath(`/trips/${tripId}`);
+        revalidatePath(`/events/${eventId}`);
         return { ok: true, data: existing as Member };
       }
     }
     return { ok: false, error: error.message };
   }
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/events/${eventId}`);
   return { ok: true, data: data as Member };
 }
 
 export async function removeMember(
-  tripId: string,
+  eventId: string,
   memberId: string,
 ): Promise<ActionResult> {
   const supabase = getSupabase();
@@ -140,7 +140,7 @@ export async function removeMember(
   const { count: paidCount } = await supabase
     .from("transactions")
     .select("id", { count: "exact", head: true })
-    .eq("trip_id", tripId)
+    .eq("event_id", eventId)
     .eq("paid_by", memberId);
   const { count: splitCount } = await supabase
     .from("transaction_splits")
@@ -159,12 +159,12 @@ export async function removeMember(
   const { count: payFrom } = await supabase
     .from("settlements")
     .select("id", { count: "exact", head: true })
-    .eq("trip_id", tripId)
+    .eq("event_id", eventId)
     .eq("from_member", memberId);
   const { count: payTo } = await supabase
     .from("settlements")
     .select("id", { count: "exact", head: true })
-    .eq("trip_id", tripId)
+    .eq("event_id", eventId)
     .eq("to_member", memberId);
 
   if ((payFrom ?? 0) > 0 || (payTo ?? 0) > 0) {
@@ -178,15 +178,15 @@ export async function removeMember(
     .from("members")
     .delete()
     .eq("id", memberId)
-    .eq("trip_id", tripId);
+    .eq("event_id", eventId);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/events/${eventId}`);
   return { ok: true };
 }
 
 export async function addTransaction(
-  tripId: string,
+  eventId: string,
   input: {
     description: string;
     amount: number;
@@ -214,7 +214,7 @@ export async function addTransaction(
   const { data: txn, error: txnErr } = await supabase
     .from("transactions")
     .insert({
-      trip_id: tripId,
+      event_id: eventId,
       description,
       amount: input.amount,
       paid_by: input.paidBy,
@@ -238,12 +238,12 @@ export async function addTransaction(
     return { ok: false, error: splitErr.message };
   }
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/events/${eventId}`);
   return { ok: true };
 }
 
 export async function updateTransaction(
-  tripId: string,
+  eventId: string,
   transactionId: string,
   input: {
     description: string;
@@ -278,7 +278,7 @@ export async function updateTransaction(
       split_type: input.splitType,
     })
     .eq("id", transactionId)
-    .eq("trip_id", tripId);
+    .eq("event_id", eventId);
   if (txnErr) return { ok: false, error: txnErr.message };
 
   // Replace the splits wholesale (delete + reinsert) to match the new shape.
@@ -298,12 +298,12 @@ export async function updateTransaction(
     .insert(rows);
   if (splitErr) return { ok: false, error: splitErr.message };
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/events/${eventId}`);
   return { ok: true };
 }
 
 export async function deleteTransaction(
-  tripId: string,
+  eventId: string,
   transactionId: string,
 ): Promise<ActionResult> {
   const supabase = getSupabase();
@@ -311,16 +311,16 @@ export async function deleteTransaction(
     .from("transactions")
     .delete()
     .eq("id", transactionId)
-    .eq("trip_id", tripId);
+    .eq("event_id", eventId);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/events/${eventId}`);
   return { ok: true };
 }
 
 /** Record that one member actually paid another to settle up. */
 export async function recordSettlement(
-  tripId: string,
+  eventId: string,
   input: {
     fromMemberId: string;
     toMemberId: string;
@@ -337,7 +337,7 @@ export async function recordSettlement(
 
   const supabase = getSupabase();
   const { error } = await supabase.from("settlements").insert({
-    trip_id: tripId,
+    event_id: eventId,
     from_member: input.fromMemberId,
     to_member: input.toMemberId,
     amount: input.amount,
@@ -345,12 +345,12 @@ export async function recordSettlement(
   });
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/events/${eventId}`);
   return { ok: true };
 }
 
 export async function deleteSettlement(
-  tripId: string,
+  eventId: string,
   settlementId: string,
 ): Promise<ActionResult> {
   const supabase = getSupabase();
@@ -358,9 +358,9 @@ export async function deleteSettlement(
     .from("settlements")
     .delete()
     .eq("id", settlementId)
-    .eq("trip_id", tripId);
+    .eq("event_id", eventId);
   if (error) return { ok: false, error: error.message };
 
-  revalidatePath(`/trips/${tripId}`);
+  revalidatePath(`/events/${eventId}`);
   return { ok: true };
 }

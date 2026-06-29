@@ -23,7 +23,7 @@ const TABS: { key: SplitType; label: string }[] = [
 ];
 
 export default function ExpenseForm({
-  tripId,
+  eventId,
   members,
   currency,
   defaultPayerId,
@@ -31,7 +31,7 @@ export default function ExpenseForm({
   onClose,
   onSaved,
 }: {
-  tripId: string;
+  eventId: string;
   members: Member[];
   currency: string;
   defaultPayerId: string;
@@ -147,8 +147,8 @@ export default function ExpenseForm({
       parts,
     };
     const res = isEdit
-      ? await updateTransaction(tripId, expense.id, payload)
-      : await addTransaction(tripId, payload);
+      ? await updateTransaction(eventId, expense.id, payload)
+      : await addTransaction(eventId, payload);
     if (res.ok) {
       onSaved();
     } else {

@@ -5,8 +5,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Plane, Users, ArrowRight, Check, X, ChevronRight } from "lucide-react";
 import { useUsername } from "@/lib/identity";
-import { useRecentTrips, forgetTrip } from "@/lib/recentTrips";
-import { createTrip, joinTripByCode } from "@/app/actions";
+import { useRecentEvents, forgetEvent } from "@/lib/recentEvents";
+import { createEvent, joinEventByCode } from "@/app/actions";
 import {
   Button,
   Card,
@@ -30,7 +30,7 @@ export default function Home() {
       {/* Hero */}
       <header>
         <p className="accent-hand text-2xl text-[var(--gold)]">
-          Trips with friends, settled simply
+          Events with friends, settled simply
         </p>
         <h1 className="mt-1 text-balance text-4xl font-semibold leading-[1.05] tracking-tight sm:text-5xl">
           Split the bill. Settle in the fewest payments.
@@ -93,39 +93,39 @@ export default function Home() {
         )}
       </Card>
 
-      <YourTrips />
+      <YourEvents />
 
       {name ? (
         <Reveal className="flex flex-col gap-4" delay={0.04}>
-          <CreateTripCard
+          <CreateEventCard
             currentName={name}
-            onCreated={(tripId) => router.push(`/trips/${tripId}`)}
+            onCreated={(eventId) => router.push(`/events/${eventId}`)}
           />
-          <JoinTripCard onJoined={(tripId) => router.push(`/trips/${tripId}`)} />
+          <JoinEventCard onJoined={(eventId) => router.push(`/events/${eventId}`)} />
         </Reveal>
       ) : (
         <p className="text-center text-sm text-[var(--text-faint)]">
-          Set your name to create or join a trip.
+          Set your name to create or join an event.
         </p>
       )}
     </div>
   );
 }
 
-function YourTrips() {
-  const trips = useRecentTrips();
-  if (trips.length === 0) return null;
+function YourEvents() {
+  const events = useRecentEvents();
+  if (events.length === 0) return null;
 
   return (
     <Reveal>
       <h2 className="mb-2 text-sm font-medium uppercase tracking-wide text-[var(--text-faint)]">
-        Your trips
+        Your events
       </h2>
       <Card className="divide-y divide-[var(--border)]">
-        {trips.map((t) => (
+        {events.map((t) => (
           <div key={t.id} className="flex items-center gap-2 pr-2">
             <Link
-              href={`/trips/${t.id}`}
+              href={`/events/${t.id}`}
               className="pressable flex min-w-0 flex-1 items-center justify-between gap-3 px-4 py-3 transition-colors hover:bg-[var(--surface-2)]"
             >
               <span className="min-w-0">
@@ -140,8 +140,8 @@ function YourTrips() {
             </Link>
             <button
               aria-label={`Forget ${t.name}`}
-              title="Remove from this device (doesn't delete the trip)"
-              onClick={() => forgetTrip(t.id)}
+              title="Remove from this device (doesn't delete the event)"
+              onClick={() => forgetEvent(t.id)}
               className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)]"
             >
               <X className="h-4 w-4" />
@@ -153,14 +153,14 @@ function YourTrips() {
   );
 }
 
-function CreateTripCard({
+function CreateEventCard({
   currentName,
   onCreated,
 }: {
   currentName: string;
-  onCreated: (tripId: string) => void;
+  onCreated: (eventId: string) => void;
 }) {
-  const [tripName, setTripName] = useState("");
+  const [eventName, setEventName] = useState("");
   const [currency, setCurrency] = useState("USD");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -169,13 +169,13 @@ function CreateTripCard({
     e.preventDefault();
     setError(null);
     setPending(true);
-    const res = await createTrip({
-      name: tripName,
+    const res = await createEvent({
+      name: eventName,
       currency,
       creatorName: currentName,
     });
     if (res.ok) {
-      onCreated(res.data.tripId);
+      onCreated(res.data.eventId);
     } else {
       setError(res.error);
       setPending(false);
@@ -186,17 +186,17 @@ function CreateTripCard({
     <Card className="p-5">
       <div className="mb-3 flex items-center gap-2">
         <Plane className="h-4 w-4 text-[var(--accent)]" />
-        <h2 className="text-lg font-semibold">Start a new trip</h2>
+        <h2 className="text-lg font-semibold">Start a new event</h2>
       </div>
       <form onSubmit={submit} className="flex flex-col gap-3">
         <div>
-          <Label htmlFor="trip">Trip name</Label>
+          <Label htmlFor="event">Event name</Label>
           <Input
-            id="trip"
+            id="event"
             maxLength={60}
             placeholder="Goa 2026"
-            value={tripName}
-            onChange={(e) => setTripName(e.target.value)}
+            value={eventName}
+            onChange={(e) => setEventName(e.target.value)}
           />
         </div>
         <div>
@@ -213,9 +213,9 @@ function CreateTripCard({
             ))}
           </Select>
         </div>
-        <Button type="submit" disabled={pending || !tripName.trim()}>
+        <Button type="submit" disabled={pending || !eventName.trim()}>
           {pending ? <Spinner /> : <ArrowRight className="h-4 w-4" />}
-          Create trip
+          Create event
         </Button>
         <ErrorText>{error}</ErrorText>
       </form>
@@ -223,7 +223,7 @@ function CreateTripCard({
   );
 }
 
-function JoinTripCard({ onJoined }: { onJoined: (tripId: string) => void }) {
+function JoinEventCard({ onJoined }: { onJoined: (eventId: string) => void }) {
   const [code, setCode] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -232,9 +232,9 @@ function JoinTripCard({ onJoined }: { onJoined: (tripId: string) => void }) {
     e.preventDefault();
     setError(null);
     setPending(true);
-    const res = await joinTripByCode(code);
+    const res = await joinEventByCode(code);
     if (res.ok) {
-      onJoined(res.data.tripId);
+      onJoined(res.data.eventId);
     } else {
       setError(res.error);
       setPending(false);

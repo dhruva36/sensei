@@ -2,12 +2,12 @@ export type SplitType = "equal" | "amount" | "share";
 
 export type Member = {
   id: string;
-  trip_id: string;
+  event_id: string;
   name: string;
   created_at: string;
 };
 
-export type Trip = {
+export type Event = {
   id: string;
   name: string;
   join_code: string;
@@ -24,7 +24,7 @@ export type TransactionSplit = {
 
 export type Transaction = {
   id: string;
-  trip_id: string;
+  event_id: string;
   description: string;
   amount: number;
   paid_by: string;
@@ -36,7 +36,7 @@ export type Transaction = {
 /** A recorded real-world payment: `from_member` paid `to_member` `amount`. */
 export type Settlement = {
   id: string;
-  trip_id: string;
+  event_id: string;
   from_member: string;
   to_member: string;
   amount: number;

@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-export const alt = "Sensei — split trip expenses, settle up fast";
+export const alt = "Sensei — split event expenses, settle up fast";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -43,7 +43,7 @@ export default function OpengraphImage() {
             Split the bill. Settle in the fewest payments.
           </div>
           <div style={{ fontSize: 32, color: "#57554c", maxWidth: "880px" }}>
-            Track shared trip expenses with friends — Sensei works out exactly who
+            Track shared event expenses with friends — Sensei works out exactly who
             pays whom.
           </div>
         </div>

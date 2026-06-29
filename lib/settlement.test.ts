@@ -7,7 +7,7 @@ import type { Settlement, Transaction } from "./types";
 function txn(partial: Partial<Transaction> & Pick<Transaction, "amount" | "paid_by" | "split_type" | "splits">): Transaction {
   return {
     id: "t",
-    trip_id: "trip",
+    event_id: "event",
     description: "x",
     created_at: "",
     ...partial,
@@ -21,7 +21,7 @@ function settlement(
 ): Settlement {
   return {
     id: `${from}-${to}-${amount}`,
-    trip_id: "trip",
+    event_id: "event",
     from_member: from,
     to_member: to,
     amount,

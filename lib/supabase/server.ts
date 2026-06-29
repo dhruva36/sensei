@@ -8,7 +8,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * This must never be imported into a Client Component — the `server-only`
  * import above will throw at build time if it is. The service-role key bypasses
  * RLS, so all access control happens in our server actions (scope every query
- * by trip_id and validate the join_code).
+ * by event_id and validate the join_code).
  */
 let cached: SupabaseClient | null = null;
 

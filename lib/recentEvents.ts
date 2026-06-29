@@ -2,10 +2,10 @@
 
 import { useSyncExternalStore } from "react";
 
-const KEY = "sensei.trips";
-const EVENT = "sensei:trips";
+const KEY = "sensei.events";
+const EVENT = "sensei:events";
 
-export type RecentTrip = {
+export type RecentEvent = {
   id: string;
   name: string;
   joinCode: string;
@@ -13,12 +13,12 @@ export type RecentTrip = {
   lastOpened: number; // epoch ms
 };
 
-function read(): RecentTrip[] {
+function read(): RecentEvent[] {
   if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(KEY);
     if (!raw) return [];
-    const parsed = JSON.parse(raw) as RecentTrip[];
+    const parsed = JSON.parse(raw) as RecentEvent[];
     if (!Array.isArray(parsed)) return [];
     return parsed;
   } catch {
@@ -26,24 +26,24 @@ function read(): RecentTrip[] {
   }
 }
 
-function write(trips: RecentTrip[]): void {
+function write(events: RecentEvent[]): void {
   if (typeof window === "undefined") return;
-  window.localStorage.setItem(KEY, JSON.stringify(trips));
+  window.localStorage.setItem(KEY, JSON.stringify(events));
   // storage events don't fire in the same tab, so notify listeners ourselves.
   window.dispatchEvent(new Event(EVENT));
 }
 
-/** Upsert a trip into this device's list and mark it most-recently opened. */
-export function rememberTrip(
-  trip: Omit<RecentTrip, "lastOpened">,
+/** Upsert an event into this device's list and mark it most-recently opened. */
+export function rememberEvent(
+  event: Omit<RecentEvent, "lastOpened">,
   now: number = Date.now(),
 ): void {
-  const others = read().filter((t) => t.id !== trip.id);
-  write([{ ...trip, lastOpened: now }, ...others]);
+  const others = read().filter((t) => t.id !== event.id);
+  write([{ ...event, lastOpened: now }, ...others]);
 }
 
-/** Remove a trip from this device's list (does not delete it from Supabase). */
-export function forgetTrip(id: string): void {
+/** Remove an event from this device's list (does not delete it from Supabase). */
+export function forgetEvent(id: string): void {
   write(read().filter((t) => t.id !== id));
 }
 
@@ -56,15 +56,15 @@ function subscribe(callback: () => void): () => void {
   };
 }
 
-const EMPTY: RecentTrip[] = [];
+const EMPTY: RecentEvent[] = [];
 
-function getSnapshot(): RecentTrip[] {
+function getSnapshot(): RecentEvent[] {
   return read();
 }
 
 // useSyncExternalStore caches by reference; sort in a stable way and only on read.
-let cache: { raw: string; sorted: RecentTrip[] } | null = null;
-function getSorted(): RecentTrip[] {
+let cache: { raw: string; sorted: RecentEvent[] } | null = null;
+function getSorted(): RecentEvent[] {
   if (typeof window === "undefined") return EMPTY;
   const raw = window.localStorage.getItem(KEY) ?? "";
   if (cache && cache.raw === raw) return cache.sorted;
@@ -73,7 +73,7 @@ function getSorted(): RecentTrip[] {
   return sorted;
 }
 
-/** React hook: this device's trips, most-recently-opened first. */
-export function useRecentTrips(): RecentTrip[] {
+/** React hook: this device's events, most-recently-opened first. */
+export function useRecentEvents(): RecentEvent[] {
   return useSyncExternalStore(subscribe, getSorted, () => EMPTY);
 }

@@ -9,7 +9,7 @@ export default function NotFound() {
           Page not found
         </h1>
         <p className="mt-2 text-sm text-[var(--text-dim)]">
-          This trip doesn&apos;t exist, or the link is incorrect.
+          This event doesn&apos;t exist, or the link is incorrect.
         </p>
         <div className="mt-5 flex justify-center">
           <Link href="/">

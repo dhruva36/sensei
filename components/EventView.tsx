@@ -21,19 +21,19 @@ import type {
   Settlement,
   Transaction,
   Transfer,
-  Trip,
+  Event,
 } from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { useUsername } from "@/lib/identity";
-import { forgetTrip, rememberTrip } from "@/lib/recentTrips";
+import { forgetEvent, rememberEvent } from "@/lib/recentEvents";
 import {
   addMember,
   deleteSettlement,
   deleteTransaction,
-  deleteTrip,
+  deleteEvent,
   recordSettlement,
   removeMember,
-  renameTrip,
+  renameEvent,
 } from "@/app/actions";
 import {
   Button,
@@ -56,15 +56,15 @@ const SPLIT_LABEL: Record<Transaction["split_type"], string> = {
   share: "by shares",
 };
 
-export default function TripView({
-  trip,
+export default function EventView({
+  event,
   members,
   transactions,
   settlements,
   balances,
   transfers,
 }: {
-  trip: Trip;
+  event: Event;
   members: Member[];
   transactions: Transaction[];
   settlements: Settlement[];
@@ -108,26 +108,26 @@ export default function TripView({
     [transactions],
   );
 
-  // Remember this trip on the device so it shows up in "Your trips" on the home
+  // Remember this event on the device so it shows up in "Your events" on the home
   // page — lets anyone reopen the event and add expenses whenever they like.
   useEffect(() => {
-    rememberTrip({
-      id: trip.id,
-      name: trip.name,
-      joinCode: trip.join_code,
-      currency: trip.currency,
+    rememberEvent({
+      id: event.id,
+      name: event.name,
+      joinCode: event.join_code,
+      currency: event.currency,
     });
-  }, [trip.id, trip.name, trip.join_code, trip.currency]);
+  }, [event.id, event.name, event.join_code, event.currency]);
 
   // If this device has a username but isn't yet a member (joined via code),
   // add them automatically.
   useEffect(() => {
     if (username.trim() && !currentMember) {
-      addMember(trip.id, username).then((res) => {
+      addMember(event.id, username).then((res) => {
         if (res.ok) router.refresh();
       });
     }
-  }, [username, currentMember, trip.id, router]);
+  }, [username, currentMember, event.id, router]);
 
   // Light polling so everyone sees others' changes without a manual refresh.
   // Only runs while the tab is visible and no expense modal is open (to avoid
@@ -164,17 +164,17 @@ export default function TripView({
         href="/"
         className="pressable mb-4 inline-flex items-center gap-1.5 text-sm text-[var(--text-dim)] transition-colors hover:text-[var(--text)]"
       >
-        <ArrowLeft className="h-4 w-4" /> All trips
+        <ArrowLeft className="h-4 w-4" /> All events
       </Link>
 
-      <TripHeader trip={trip} memberCount={members.length} />
+      <EventHeader event={event} memberCount={members.length} />
 
       <Stagger className="mt-3 grid grid-cols-2 gap-3">
         <StaggerItem>
           <Card className="p-4">
             <AnimatedNumber
               value={totalSpent}
-              format={(n) => formatMoney(n, trip.currency)}
+              format={(n) => formatMoney(n, event.currency)}
               className="text-2xl font-semibold"
             />
             <div className="mt-1 text-sm text-[var(--text-dim)]">Total spent</div>
@@ -209,11 +209,11 @@ export default function TripView({
 
       <div className="mt-5">
         <BalancesCard
-          tripId={trip.id}
+          eventId={event.id}
           balances={balances}
           transfers={transfers}
           nameById={nameById}
-          currency={trip.currency}
+          currency={event.currency}
           currentMemberId={currentMember?.id ?? null}
         />
       </div>
@@ -221,10 +221,10 @@ export default function TripView({
       {visibleSettlements.length > 0 ? (
         <div className="mt-5">
           <PaymentsCard
-            tripId={trip.id}
+            eventId={event.id}
             settlements={visibleSettlements}
             nameById={nameById}
-            currency={trip.currency}
+            currency={event.currency}
             onDeleteRequest={undo.request}
           />
         </div>
@@ -247,8 +247,8 @@ export default function TripView({
         <ExpenseList
           transactions={visibleTransactions}
           nameById={nameById}
-          currency={trip.currency}
-          tripId={trip.id}
+          currency={event.currency}
+          eventId={event.id}
           onEdit={(t) => setEditingExpense(t)}
           onDeleteRequest={undo.request}
         />
@@ -258,7 +258,7 @@ export default function TripView({
         <SectionTitle title="Members" subtitle={`${members.length} people`} />
         <MembersCard
           members={members}
-          tripId={trip.id}
+          eventId={event.id}
           currentMemberId={currentMember?.id ?? null}
         />
       </div>
@@ -266,9 +266,9 @@ export default function TripView({
       {expenseModalOpen ? (
         <ExpenseForm
           key={editingExpense?.id ?? "new"}
-          tripId={trip.id}
+          eventId={event.id}
           members={members}
-          currency={trip.currency}
+          currency={event.currency}
           defaultPayerId={currentMember?.id ?? members[0]?.id ?? ""}
           expense={editingExpense}
           onClose={() => {
@@ -288,11 +288,11 @@ export default function TripView({
   );
 }
 
-function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) {
+function EventHeader({ event, memberCount }: { event: Event; memberCount: number }) {
   const router = useRouter();
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [name, setName] = useState(trip.name);
+  const [name, setName] = useState(event.name);
   const [error, setError] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -300,8 +300,8 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
   function copy(kind: "code" | "link") {
     const text =
       kind === "code"
-        ? trip.join_code
-        : `${window.location.origin}/j/${trip.join_code}`;
+        ? event.join_code
+        : `${window.location.origin}/j/${event.join_code}`;
     navigator.clipboard?.writeText(text);
     setCopied(kind);
     setTimeout(() => setCopied(null), 1500);
@@ -310,9 +310,9 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
   function saveName(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
-    if (name.trim() === trip.name) return setSettingsOpen(false);
+    if (name.trim() === event.name) return setSettingsOpen(false);
     startTransition(async () => {
-      const res = await renameTrip(trip.id, name);
+      const res = await renameEvent(event.id, name);
       if (res.ok) {
         setSettingsOpen(false);
         router.refresh();
@@ -325,9 +325,9 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
   function remove() {
     setConfirmDelete(false);
     startTransition(async () => {
-      const res = await deleteTrip(trip.id);
+      const res = await deleteEvent(event.id);
       if (res.ok) {
-        forgetTrip(trip.id);
+        forgetEvent(event.id);
         router.push("/");
       } else {
         setError(res.error);
@@ -340,18 +340,18 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
       <div className="flex items-start justify-between gap-3 bg-[var(--ink)] px-5 py-4">
         <div className="min-w-0">
           <h1 className="truncate text-2xl font-semibold tracking-tight text-[var(--surface)]">
-            {trip.name}
+            {event.name}
           </h1>
           <p className="mt-0.5 flex items-center gap-1.5 text-sm text-[color-mix(in_srgb,var(--surface)_70%,transparent)]">
             <Users className="h-3.5 w-3.5" /> {memberCount} members ·{" "}
-            {trip.currency}
+            {event.currency}
           </p>
         </div>
         <button
-          aria-label="Trip settings"
+          aria-label="Event settings"
           aria-expanded={settingsOpen}
           onClick={() => {
-            setName(trip.name);
+            setName(event.name);
             setError(null);
             setSettingsOpen((v) => !v);
           }}
@@ -364,10 +364,10 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
       {settingsOpen ? (
         <div className="border-b border-[var(--border)] bg-[var(--surface-2)] px-5 py-4">
           <form onSubmit={saveName} className="flex flex-col gap-2">
-            <Label htmlFor="trip-name">Trip name</Label>
+            <Label htmlFor="event-name">Event name</Label>
             <div className="flex gap-2">
               <Input
-                id="trip-name"
+                id="event-name"
                 maxLength={60}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
@@ -380,7 +380,7 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
           </form>
           <div className="mt-4 flex items-center justify-between border-t border-[var(--border)] pt-4">
             <span className="text-sm text-[var(--text-dim)]">
-              Delete this trip for everyone
+              Delete this event for everyone
             </span>
             <Button
               size="sm"
@@ -399,7 +399,7 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
         <div>
           <p className="text-xs text-[var(--text-faint)]">Join code</p>
           <p className="tnum text-lg font-semibold tracking-widest text-[var(--text)]">
-            {trip.join_code}
+            {event.join_code}
           </p>
         </div>
         <div className="flex gap-2">
@@ -424,9 +424,9 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
 
       <ConfirmDialog
         open={confirmDelete}
-        title={`Delete "${trip.name}"?`}
-        message="This permanently removes the trip and all its expenses and payments for everyone. This can't be undone."
-        confirmLabel="Delete trip"
+        title={`Delete "${event.name}"?`}
+        message="This permanently removes the event and all its expenses and payments for everyone. This can't be undone."
+        confirmLabel="Delete event"
         pending={pending}
         onConfirm={remove}
         onCancel={() => setConfirmDelete(false)}
@@ -436,14 +436,14 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
 }
 
 function BalancesCard({
-  tripId,
+  eventId,
   balances,
   transfers,
   nameById,
   currency,
   currentMemberId,
 }: {
-  tripId: string;
+  eventId: string;
   balances: Balance[];
   transfers: Transfer[];
   nameById: Record<string, string>;
@@ -460,7 +460,7 @@ function BalancesCard({
     setConfirmTransfer(null);
     setError(null);
     startTransition(async () => {
-      const res = await recordSettlement(tripId, {
+      const res = await recordSettlement(eventId, {
         fromMemberId: t.from,
         toMemberId: t.to,
         amount: t.amount,
@@ -576,13 +576,13 @@ function BalancesCard({
 }
 
 function PaymentsCard({
-  tripId,
+  eventId,
   settlements,
   nameById,
   currency,
   onDeleteRequest,
 }: {
-  tripId: string;
+  eventId: string;
   settlements: Settlement[];
   nameById: Record<string, string>;
   currency: string;
@@ -623,7 +623,7 @@ function PaymentsCard({
                 aria-label="Delete payment"
                 onClick={() =>
                   onDeleteRequest(s.id, "Payment deleted", () =>
-                    deleteSettlement(tripId, s.id),
+                    deleteSettlement(eventId, s.id),
                   )
                 }
                 className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)]"
@@ -642,14 +642,14 @@ function ExpenseList({
   transactions,
   nameById,
   currency,
-  tripId,
+  eventId,
   onEdit,
   onDeleteRequest,
 }: {
   transactions: Transaction[];
   nameById: Record<string, string>;
   currency: string;
-  tripId: string;
+  eventId: string;
   onEdit: (t: Transaction) => void;
   onDeleteRequest: (
     id: string,
@@ -700,7 +700,7 @@ function ExpenseList({
               aria-label="Delete expense"
               onClick={() =>
                 onDeleteRequest(t.id, "Expense deleted", () =>
-                  deleteTransaction(tripId, t.id),
+                  deleteTransaction(eventId, t.id),
                 )
               }
               className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)]"
@@ -716,11 +716,11 @@ function ExpenseList({
 
 function MembersCard({
   members,
-  tripId,
+  eventId,
   currentMemberId,
 }: {
   members: Member[];
-  tripId: string;
+  eventId: string;
   currentMemberId: string | null;
 }) {
   const router = useRouter();
@@ -736,7 +736,7 @@ function MembersCard({
     setError(null);
     const name = newName;
     startTransition(async () => {
-      const res = await addMember(tripId, name);
+      const res = await addMember(eventId, name);
       if (res.ok) {
         setNewName("");
         router.refresh();
@@ -750,7 +750,7 @@ function MembersCard({
     setConfirmId(null);
     setError(null);
     startTransition(async () => {
-      const res = await removeMember(tripId, id);
+      const res = await removeMember(eventId, id);
       if (res.ok) router.refresh();
       else setError(res.error);
     });
@@ -803,7 +803,7 @@ function MembersCard({
       <ConfirmDialog
         open={confirmMember !== null}
         title={confirmMember ? `Remove ${confirmMember.name}?` : "Remove member?"}
-        message="They'll be removed from this trip. Members tied to existing expenses can't be removed."
+        message="They'll be removed from this event. Members tied to existing expenses can't be removed."
         confirmLabel="Remove"
         onConfirm={() => confirmId && remove(confirmId)}
         onCancel={() => setConfirmId(null)}

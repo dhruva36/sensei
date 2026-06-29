@@ -1,6 +1,6 @@
 # Sensei
 
-I built Sensei because splitting expenses on a trip always turns into a mess of screenshots and
+I built Sensei because splitting expenses on an event always turns into a mess of screenshots and
 "wait, who paid for dinner?" — and most of the apps that solve it want everyone to make an account
 first. I wanted something I could share with a group in one tap: split the bill however we actually
 split it, and **settle up in the fewest possible payments**.
@@ -8,7 +8,7 @@ split it, and **settle up in the fewest possible payments**.
 Here's what it does:
 
 - **No accounts.** You just pick a name on your device — that's it. No sign-up, no password.
-- **Cloud-shared.** Start a trip, share the join code or link, and everyone's looking at the same
+- **Cloud-shared.** Start an event, share the join code or link, and everyone's looking at the same
   numbers. It auto-refreshes every few seconds, so you don't have to keep pulling to refresh.
 - **Splits that match real life.** Split an expense equally, by exact amounts, or by weighted
   shares/percentages. Made a mistake? Edit or delete it — deletes give you a few seconds to undo.
@@ -16,7 +16,7 @@ Here's what it does:
   transfers possible.
 - **Mark things paid.** Once someone actually pays you back, record it and the balances drop — so
   settled debt stops haunting the list.
-- **Trip housekeeping.** Rename or delete a trip whenever you need to.
+- **Event housekeeping.** Rename or delete an event whenever you need to.
 
 It's built with **Next.js (App Router) + Supabase** and deploys to **Vercel**.
 
@@ -25,18 +25,18 @@ It's built with **Next.js (App Router) + Supabase** and deploys to **Vercel**.
 | Concept | Notes |
 | --- | --- |
 | Identity | Just a name saved on your device (`lib/identity.ts`). No login. |
-| Access control | Every trip has a unique **join code** — that code is the only "key". |
+| Access control | Every event has a unique **join code** — that code is the only "key". |
 | Data | Supabase Postgres, accessed **server-side only** via the service-role key. |
 | Settlement | Net balances + a greedy minimum-transfer heuristic (`lib/settlement.ts`). |
 
 ### A note on the security model
 
-I deliberately skipped end-user auth — it'd be overkill for a "friends on a trip" app. Every database
+I deliberately skipped end-user auth — it'd be overkill for a "friends on an event" app. Every database
 call goes through Next.js **Server Actions** (`app/actions.ts`) using the Supabase **service-role
 key**, which never leaves the server. Row Level Security is on with **no public policies**, so the
-public/anon key can't read anything directly. The per-trip join code is the thing that gates access.
+public/anon key can't read anything directly. The per-event join code is the thing that gates access.
 
-> So: anyone with a trip's join code can view and edit that trip. That's the trade-off for being
+> So: anyone with an event's join code can view and edit that event. That's the trade-off for being
 > frictionless — please don't put anything sensitive in here.
 
 ## Running it locally
@@ -91,9 +91,9 @@ Open [http://localhost:3000](http://localhost:3000).
 ```
 app/
   page.tsx              Landing (create / join, set your name)
-  trips/[id]/page.tsx   Trip dashboard (server) -> components/TripView
-  j/[code]/page.tsx     Share-link join: /j/CODE -> redirects to the trip
-  actions.ts            Server Actions (trips, members, expenses, payments)
+  events/[id]/page.tsx   Event dashboard (server) -> components/EventView
+  j/[code]/page.tsx     Share-link join: /j/CODE -> redirects to the event
+  actions.ts            Server Actions (events, members, expenses, payments)
 lib/
   supabase/server.ts    Server-only Supabase client (service-role)
   data.ts               Server-side reads
@@ -102,7 +102,7 @@ lib/
   settlement.test.ts    Unit tests
   money.ts              Integer-cent helpers (so no float drift)
   identity.ts           Device name (localStorage)
-components/             UI (Home, TripView, ExpenseForm, ui primitives)
+components/             UI (Home, EventView, ExpenseForm, ui primitives)
 supabase/schema.sql     Database schema
 ```
 

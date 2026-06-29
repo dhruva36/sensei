@@ -1,15 +1,15 @@
 import { notFound } from "next/navigation";
-import { getFullTrip } from "@/lib/data";
+import { getFullEvent } from "@/lib/data";
 import { settle } from "@/lib/settlement";
-import TripView from "@/components/TripView";
+import EventView from "@/components/EventView";
 
-export default async function TripPage({
+export default async function EventPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const data = await getFullTrip(id);
+  const data = await getFullEvent(id);
 
   if (!data) notFound();
 
@@ -20,8 +20,8 @@ export default async function TripPage({
   );
 
   return (
-    <TripView
-      trip={data.trip}
+    <EventView
+      event={data.event}
       members={data.members}
       transactions={data.transactions}
       settlements={data.settlements}

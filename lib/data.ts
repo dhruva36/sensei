@@ -2,7 +2,7 @@ import "server-only";
 
 import { getSupabase } from "./supabase/server";
 import { normalizeJoinCode } from "./joinCode";
-import type { Member, Settlement, Transaction, Trip } from "./types";
+import type { Member, Settlement, Transaction, Event } from "./types";
 
 /**
  * Postgres `numeric` columns come back from PostgREST as strings. Coerce the
@@ -18,7 +18,7 @@ function normalizeTransaction(row: Record<string, unknown>): Transaction {
   }));
   return {
     id: row.id as string,
-    trip_id: row.trip_id as string,
+    event_id: row.event_id as string,
     description: row.description as string,
     amount: Number(row.amount),
     paid_by: row.paid_by as string,
@@ -28,67 +28,67 @@ function normalizeTransaction(row: Record<string, unknown>): Transaction {
   };
 }
 
-export async function getTrip(tripId: string): Promise<Trip | null> {
+export async function getEvent(eventId: string): Promise<Event | null> {
   const supabase = getSupabase();
   const { data, error } = await supabase
-    .from("trips")
+    .from("events")
     .select("*")
-    .eq("id", tripId)
+    .eq("id", eventId)
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return (data as Trip) ?? null;
+  return (data as Event) ?? null;
 }
 
-export async function getTripByCode(code: string): Promise<Trip | null> {
+export async function getEventByCode(code: string): Promise<Event | null> {
   const supabase = getSupabase();
   const { data, error } = await supabase
-    .from("trips")
+    .from("events")
     .select("*")
     .eq("join_code", normalizeJoinCode(code))
     .maybeSingle();
   if (error) throw new Error(error.message);
-  return (data as Trip) ?? null;
+  return (data as Event) ?? null;
 }
 
-export async function getMembers(tripId: string): Promise<Member[]> {
+export async function getMembers(eventId: string): Promise<Member[]> {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("members")
     .select("*")
-    .eq("trip_id", tripId)
+    .eq("event_id", eventId)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
   return (data as Member[]) ?? [];
 }
 
-export async function getTransactions(tripId: string): Promise<Transaction[]> {
+export async function getTransactions(eventId: string): Promise<Transaction[]> {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("transactions")
     .select("*, splits:transaction_splits(*)")
-    .eq("trip_id", tripId)
+    .eq("event_id", eventId)
     .order("created_at", { ascending: false });
   if (error) throw new Error(error.message);
   return ((data as Record<string, unknown>[]) ?? []).map(normalizeTransaction);
 }
 
-export async function getSettlements(tripId: string): Promise<Settlement[]> {
+export async function getSettlements(eventId: string): Promise<Settlement[]> {
   const supabase = getSupabase();
   const { data, error } = await supabase
     .from("settlements")
     .select("*")
-    .eq("trip_id", tripId)
+    .eq("event_id", eventId)
     .order("created_at", { ascending: false });
   if (error) {
     // The settlements table is an additive migration. If it hasn't been applied
-    // yet, degrade gracefully (no payments) instead of breaking the whole trip.
+    // yet, degrade gracefully (no payments) instead of breaking the whole event.
     if (error.code === "PGRST205" || error.code === "42P01") return [];
     throw new Error(error.message);
   }
   // numeric(12,2) comes back as a string from PostgREST — coerce to a number.
   return ((data as Record<string, unknown>[]) ?? []).map((r) => ({
     id: r.id as string,
-    trip_id: r.trip_id as string,
+    event_id: r.event_id as string,
     from_member: r.from_member as string,
     to_member: r.to_member as string,
     amount: Number(r.amount),
@@ -97,20 +97,20 @@ export async function getSettlements(tripId: string): Promise<Settlement[]> {
   }));
 }
 
-export type FullTrip = {
-  trip: Trip;
+export type FullEvent = {
+  event: Event;
   members: Member[];
   transactions: Transaction[];
   settlements: Settlement[];
 };
 
-export async function getFullTrip(tripId: string): Promise<FullTrip | null> {
-  const trip = await getTrip(tripId);
-  if (!trip) return null;
+export async function getFullEvent(eventId: string): Promise<FullEvent | null> {
+  const event = await getEvent(eventId);
+  if (!event) return null;
   const [members, transactions, settlements] = await Promise.all([
-    getMembers(tripId),
-    getTransactions(tripId),
-    getSettlements(tripId),
+    getMembers(eventId),
+    getTransactions(eventId),
+    getSettlements(eventId),
   ]);
-  return { trip, members, transactions, settlements };
+  return { event, members, transactions, settlements };
 }

@@ -29,9 +29,9 @@ const siteUrl =
   (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
   "http://localhost:3000";
 
-const title = "Sensei — Split trip expenses, settle up fast";
+const title = "Sensei — Split event expenses, settle up fast";
 const description =
-  "Track shared trip expenses with friends and settle up in the fewest possible payments.";
+  "Track shared event expenses with friends and settle up in the fewest possible payments.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),

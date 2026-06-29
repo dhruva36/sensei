@@ -1,18 +1,18 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { getTripByCode } from "@/lib/data";
+import { getEventByCode } from "@/lib/data";
 import { Button, Card } from "@/components/ui";
 
-// Clean share links: /j/ABC123 -> redirects to the trip dashboard.
+// Clean share links: /j/ABC123 -> redirects to the event dashboard.
 export default async function JoinByCode({
   params,
 }: {
   params: Promise<{ code: string }>;
 }) {
   const { code } = await params;
-  const trip = await getTripByCode(code);
+  const event = await getEventByCode(code);
 
-  if (trip) redirect(`/trips/${trip.id}`);
+  if (event) redirect(`/events/${event.id}`);
 
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-4 px-5 py-16 text-center">
@@ -21,7 +21,7 @@ export default async function JoinByCode({
           Invalid link
         </h1>
         <p className="mt-2 text-sm text-[var(--text-dim)]">
-          We couldn&apos;t find a trip for code{" "}
+          We couldn&apos;t find an event for code{" "}
           <span className="tnum font-semibold tracking-widest text-[var(--text)]">
             {code}
           </span>
