@@ -113,10 +113,3 @@ re-run the whole file in the Supabase SQL editor. The **`settlements`** table (r
 an additive migration — if you set up an earlier version of this, re-run the file to pick it up. Until
 you do, the app degrades gracefully: payments just won't show up.
 
-## Things I left out (on purpose, for now)
-
-No login, no trip-leader role, no approval flow. Identity is still per-device (a name in
-`localStorage`), which means anyone who opens a share link gets added to the trip, and renaming a
-person creates a new member — a stable per-device id would fix that down the line. Multi-currency
-conversion, categories, and receipts are all things I might add later. Live sync is currently just
-lightweight polling (every ~8s while the tab's open); I could swap in Supabase Realtime eventually.
