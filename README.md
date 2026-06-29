@@ -1,9 +1,9 @@
 # Sensei
 
 I built Sensei because splitting expenses on an event always turns into a mess of screenshots and
-"wait, who paid for dinner?" — and most of the apps that solve it want everyone to make an account
-first. I wanted something I could share with a group in one tap: split the bill however we actually
-split it, and **settle up in the fewest possible payments**.
+"wait, who paid for dinner?" — and most of the apps that solve it either want everyone to make an account
+first or ask you to pay up for some features. I wanted something I could share with a group in one tap: split the bill however we actually
+split it, and settle up in the fewest possible payments.
 
 Here's what it does:
 
@@ -11,11 +11,10 @@ Here's what it does:
 - **Cloud-shared.** Start an event, share the join code or link, and everyone's looking at the same
   numbers. It auto-refreshes every few seconds, so you don't have to keep pulling to refresh.
 - **Splits that match real life.** Split an expense equally, by exact amounts, or by weighted
-  shares/percentages. Made a mistake? Edit or delete it — deletes give you a few seconds to undo.
+  shares/percentages. Made a mistake? Edit or delete it.
 - **It does the math.** Sensei nets everyone out and tells you exactly who pays whom, in the fewest
   transfers possible.
-- **Mark things paid.** Once someone actually pays you back, record it and the balances drop — so
-  settled debt stops haunting the list.
+- **Mark things paid.** Once someone actually pays you back, record it and the balances drop.
 - **Event housekeeping.** Rename or delete an event whenever you need to.
 
 It's built with **Next.js (App Router) + Supabase** and deploys to **Vercel**.
