@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { X } from "lucide-react";
-import type { Member, SplitType } from "@/lib/types";
+import type { Member, SplitType, Transaction } from "@/lib/types";
 import { computeOwed, type SplitPart } from "@/lib/splits";
 import { formatMoney, fromCents } from "@/lib/money";
-import { addTransaction } from "@/app/actions";
+import { addTransaction, updateTransaction } from "@/app/actions";
 import {
   Button,
   ErrorText,
@@ -27,6 +27,7 @@ export default function ExpenseForm({
   members,
   currency,
   defaultPayerId,
+  expense,
   onClose,
   onSaved,
 }: {
@@ -34,20 +35,52 @@ export default function ExpenseForm({
   members: Member[];
   currency: string;
   defaultPayerId: string;
+  /** When provided, the form edits this expense instead of creating a new one. */
+  expense?: Transaction | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
-  const [description, setDescription] = useState("");
-  const [amount, setAmount] = useState("");
-  const [paidBy, setPaidBy] = useState(defaultPayerId);
-  const [splitType, setSplitType] = useState<SplitType>("equal");
-  const [selected, setSelected] = useState<Set<string>>(
-    () => new Set(members.map((m) => m.id)),
+  const isEdit = expense != null;
+
+  const [description, setDescription] = useState(expense?.description ?? "");
+  const [amount, setAmount] = useState(
+    expense ? String(expense.amount) : "",
   );
-  const [amounts, setAmounts] = useState<Record<string, string>>({});
-  const [shares, setShares] = useState<Record<string, string>>({});
+  const [paidBy, setPaidBy] = useState(expense?.paid_by ?? defaultPayerId);
+  const [splitType, setSplitType] = useState<SplitType>(
+    expense?.split_type ?? "equal",
+  );
+  const [selected, setSelected] = useState<Set<string>>(() =>
+    expense
+      ? new Set(expense.splits.map((s) => s.member_id))
+      : new Set(members.map((m) => m.id)),
+  );
+  // For amount/share modes, seed the per-member weights from the saved splits.
+  const [amounts, setAmounts] = useState<Record<string, string>>(() =>
+    expense && expense.split_type === "amount"
+      ? Object.fromEntries(expense.splits.map((s) => [s.member_id, String(s.weight)]))
+      : {},
+  );
+  const [shares, setShares] = useState<Record<string, string>>(() =>
+    expense && expense.split_type === "share"
+      ? Object.fromEntries(expense.splits.map((s) => [s.member_id, String(s.weight)]))
+      : {},
+  );
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+
+  // Close on Escape; restore focus to whatever was focused before the modal opened.
+  useEffect(() => {
+    const prevActive = document.activeElement as HTMLElement | null;
+    function onKey(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      prevActive?.focus?.();
+    };
+  }, [onClose]);
 
   const amountNum = parseFloat(amount) || 0;
 
@@ -106,13 +139,16 @@ export default function ExpenseForm({
     if (preview.error) return setError(preview.error);
 
     setPending(true);
-    const res = await addTransaction(tripId, {
+    const payload = {
       description,
       amount: amountNum,
       paidBy,
       splitType,
       parts,
-    });
+    };
+    const res = isEdit
+      ? await updateTransaction(tripId, expense.id, payload)
+      : await addTransaction(tripId, payload);
     if (res.ok) {
       onSaved();
     } else {
@@ -127,11 +163,19 @@ export default function ExpenseForm({
       onClick={onClose}
     >
       <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="expense-form-title"
         className="animate-fade-in flex max-h-[92vh] w-full max-w-md flex-col overflow-hidden rounded-t-3xl border border-[var(--border)] bg-[var(--surface)] shadow-2xl sm:rounded-3xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-4">
-          <h2 className="text-lg font-semibold tracking-tight">Add expense</h2>
+          <h2
+            id="expense-form-title"
+            className="text-lg font-semibold tracking-tight"
+          >
+            {isEdit ? "Edit expense" : "Add expense"}
+          </h2>
           <button
             onClick={onClose}
             className="pressable rounded-lg p-1.5 text-[var(--text-faint)] hover:bg-[var(--surface-2)]"
@@ -150,6 +194,7 @@ export default function ExpenseForm({
             <Input
               id="desc"
               autoFocus
+              maxLength={120}
               placeholder="Dinner, taxi, hotel…"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
@@ -162,6 +207,7 @@ export default function ExpenseForm({
               <Input
                 id="amt"
                 inputMode="decimal"
+                maxLength={12}
                 placeholder="0.00"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
@@ -242,6 +288,7 @@ export default function ExpenseForm({
                   {isSel && splitType === "amount" ? (
                     <input
                       inputMode="decimal"
+                      maxLength={12}
                       placeholder="0.00"
                       value={amounts[m.id] ?? ""}
                       onChange={(e) =>
@@ -255,6 +302,7 @@ export default function ExpenseForm({
                     <div className="flex items-center gap-2">
                       <input
                         inputMode="decimal"
+                        maxLength={6}
                         placeholder="1"
                         value={shares[m.id] ?? ""}
                         onChange={(e) =>
@@ -310,7 +358,7 @@ export default function ExpenseForm({
             </Button>
             <Button type="submit" className="flex-1" disabled={pending}>
               {pending ? <Spinner /> : null}
-              Save expense
+              {isEdit ? "Save changes" : "Save expense"}
             </Button>
           </div>
         </form>

@@ -48,13 +48,27 @@ create table if not exists transaction_splits (
   weight          numeric not null default 1
 );
 
+-- Recorded payments: one member actually paid another to settle up. These are
+-- folded into the net balances so settled debt stops showing as outstanding.
+create table if not exists settlements (
+  id          uuid primary key default gen_random_uuid(),
+  trip_id     uuid not null references trips (id) on delete cascade,
+  from_member uuid not null references members (id) on delete cascade,
+  to_member   uuid not null references members (id) on delete cascade,
+  amount      numeric(12, 2) not null check (amount > 0),
+  note        text,
+  created_at  timestamptz not null default now()
+);
+
 create index if not exists transactions_trip_idx on transactions (trip_id);
 create index if not exists members_trip_idx on members (trip_id);
 create index if not exists splits_txn_idx on transaction_splits (transaction_id);
+create index if not exists settlements_trip_idx on settlements (trip_id);
 
 -- Lock everything down to the service role only.
 alter table trips enable row level security;
 alter table members enable row level security;
 alter table transactions enable row level security;
 alter table transaction_splits enable row level security;
+alter table settlements enable row level security;
 -- (No policies created on purpose: anon/public key gets zero access.)

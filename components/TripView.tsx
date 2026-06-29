@@ -7,27 +7,48 @@ import {
   ArrowLeft,
   Check,
   Copy,
+  Pencil,
   Plus,
   Receipt,
+  Settings,
   Trash2,
   UserPlus,
   Users,
 } from "lucide-react";
-import type { Balance, Member, Transaction, Transfer, Trip } from "@/lib/types";
+import type {
+  Balance,
+  Member,
+  Settlement,
+  Transaction,
+  Transfer,
+  Trip,
+} from "@/lib/types";
 import { formatMoney } from "@/lib/money";
 import { useUsername } from "@/lib/identity";
-import { rememberTrip } from "@/lib/recentTrips";
-import { addMember, deleteTransaction, removeMember } from "@/app/actions";
+import { forgetTrip, rememberTrip } from "@/lib/recentTrips";
+import {
+  addMember,
+  deleteSettlement,
+  deleteTransaction,
+  deleteTrip,
+  recordSettlement,
+  removeMember,
+  renameTrip,
+} from "@/app/actions";
 import {
   Button,
   Card,
   ErrorText,
   Input,
+  Label,
   SectionTitle,
   Spinner,
 } from "@/components/ui";
 import { AnimatedNumber, Stagger, StaggerItem } from "@/components/motion";
 import ExpenseForm from "@/components/ExpenseForm";
+import ConfirmDialog from "@/components/ConfirmDialog";
+import UndoToast from "@/components/UndoToast";
+import { useUndoableDelete } from "@/components/useUndoableDelete";
 
 const SPLIT_LABEL: Record<Transaction["split_type"], string> = {
   equal: "split equally",
@@ -39,22 +60,39 @@ export default function TripView({
   trip,
   members,
   transactions,
+  settlements,
   balances,
   transfers,
 }: {
   trip: Trip;
   members: Member[];
   transactions: Transaction[];
+  settlements: Settlement[];
   balances: Balance[];
   transfers: Transfer[];
 }) {
   const router = useRouter();
   const [username] = useUsername();
   const [showExpense, setShowExpense] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<Transaction | null>(null);
+  const expenseModalOpen = showExpense || editingExpense !== null;
+
+  // Undo-on-delete for expenses and payments (single toast region for both).
+  const undo = useUndoableDelete(router);
 
   const nameById = useMemo(
     () => Object.fromEntries(members.map((m) => [m.id, m.name])),
     [members],
+  );
+
+  // Hide optimistically-deleted rows while their undo toast is showing.
+  const visibleTransactions = useMemo(
+    () => transactions.filter((t) => !undo.hiddenIds.has(t.id)),
+    [transactions, undo.hiddenIds],
+  );
+  const visibleSettlements = useMemo(
+    () => settlements.filter((s) => !undo.hiddenIds.has(s.id)),
+    [settlements, undo.hiddenIds],
   );
 
   const currentMember = useMemo(
@@ -90,6 +128,35 @@ export default function TripView({
       });
     }
   }, [username, currentMember, trip.id, router]);
+
+  // Light polling so everyone sees others' changes without a manual refresh.
+  // Only runs while the tab is visible and no expense modal is open (to avoid
+  // refreshing mid-edit), keeping it cheap and unobtrusive.
+  useEffect(() => {
+    if (expenseModalOpen) return;
+    let timer: ReturnType<typeof setInterval> | null = null;
+
+    function start() {
+      if (timer == null) timer = setInterval(() => router.refresh(), 8000);
+    }
+    function stop() {
+      if (timer != null) {
+        clearInterval(timer);
+        timer = null;
+      }
+    }
+    function onVisibility() {
+      if (document.visibilityState === "visible") start();
+      else stop();
+    }
+
+    onVisibility();
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      stop();
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [expenseModalOpen, router]);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-5 pb-16 pt-6">
@@ -142,6 +209,7 @@ export default function TripView({
 
       <div className="mt-5">
         <BalancesCard
+          tripId={trip.id}
           balances={balances}
           transfers={transfers}
           nameById={nameById}
@@ -150,10 +218,22 @@ export default function TripView({
         />
       </div>
 
+      {visibleSettlements.length > 0 ? (
+        <div className="mt-5">
+          <PaymentsCard
+            tripId={trip.id}
+            settlements={visibleSettlements}
+            nameById={nameById}
+            currency={trip.currency}
+            onDeleteRequest={undo.request}
+          />
+        </div>
+      ) : null}
+
       <div className="mt-6">
         <SectionTitle
           title="Expenses"
-          subtitle={`${transactions.length} total`}
+          subtitle={`${visibleTransactions.length} total`}
           action={
             <Button
               size="sm"
@@ -165,10 +245,12 @@ export default function TripView({
           }
         />
         <ExpenseList
-          transactions={transactions}
+          transactions={visibleTransactions}
           nameById={nameById}
           currency={trip.currency}
           tripId={trip.id}
+          onEdit={(t) => setEditingExpense(t)}
+          onDeleteRequest={undo.request}
         />
       </div>
 
@@ -181,25 +263,39 @@ export default function TripView({
         />
       </div>
 
-      {showExpense ? (
+      {expenseModalOpen ? (
         <ExpenseForm
+          key={editingExpense?.id ?? "new"}
           tripId={trip.id}
           members={members}
           currency={trip.currency}
           defaultPayerId={currentMember?.id ?? members[0]?.id ?? ""}
-          onClose={() => setShowExpense(false)}
+          expense={editingExpense}
+          onClose={() => {
+            setShowExpense(false);
+            setEditingExpense(null);
+          }}
           onSaved={() => {
             setShowExpense(false);
+            setEditingExpense(null);
             router.refresh();
           }}
         />
       ) : null}
+
+      <UndoToast toasts={undo.toasts} onUndo={undo.undo} />
     </div>
   );
 }
 
 function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) {
+  const router = useRouter();
   const [copied, setCopied] = useState<"code" | "link" | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [name, setName] = useState(trip.name);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [pending, startTransition] = useTransition();
 
   function copy(kind: "code" | "link") {
     const text =
@@ -211,16 +307,94 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
     setTimeout(() => setCopied(null), 1500);
   }
 
+  function saveName(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    if (name.trim() === trip.name) return setSettingsOpen(false);
+    startTransition(async () => {
+      const res = await renameTrip(trip.id, name);
+      if (res.ok) {
+        setSettingsOpen(false);
+        router.refresh();
+      } else {
+        setError(res.error);
+      }
+    });
+  }
+
+  function remove() {
+    setConfirmDelete(false);
+    startTransition(async () => {
+      const res = await deleteTrip(trip.id);
+      if (res.ok) {
+        forgetTrip(trip.id);
+        router.push("/");
+      } else {
+        setError(res.error);
+      }
+    });
+  }
+
   return (
     <Card className="overflow-hidden">
-      <div className="bg-[var(--ink)] px-5 py-4">
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--surface)]">
-          {trip.name}
-        </h1>
-        <p className="mt-0.5 flex items-center gap-1.5 text-sm text-[color-mix(in_srgb,var(--surface)_70%,transparent)]">
-          <Users className="h-3.5 w-3.5" /> {memberCount} members · {trip.currency}
-        </p>
+      <div className="flex items-start justify-between gap-3 bg-[var(--ink)] px-5 py-4">
+        <div className="min-w-0">
+          <h1 className="truncate text-2xl font-semibold tracking-tight text-[var(--surface)]">
+            {trip.name}
+          </h1>
+          <p className="mt-0.5 flex items-center gap-1.5 text-sm text-[color-mix(in_srgb,var(--surface)_70%,transparent)]">
+            <Users className="h-3.5 w-3.5" /> {memberCount} members ·{" "}
+            {trip.currency}
+          </p>
+        </div>
+        <button
+          aria-label="Trip settings"
+          aria-expanded={settingsOpen}
+          onClick={() => {
+            setName(trip.name);
+            setError(null);
+            setSettingsOpen((v) => !v);
+          }}
+          className="pressable shrink-0 rounded-lg p-2 text-[color-mix(in_srgb,var(--surface)_70%,transparent)] transition-colors hover:bg-[color-mix(in_srgb,var(--surface)_12%,transparent)] hover:text-[var(--surface)]"
+        >
+          <Settings className="h-5 w-5" />
+        </button>
       </div>
+
+      {settingsOpen ? (
+        <div className="border-b border-[var(--border)] bg-[var(--surface-2)] px-5 py-4">
+          <form onSubmit={saveName} className="flex flex-col gap-2">
+            <Label htmlFor="trip-name">Trip name</Label>
+            <div className="flex gap-2">
+              <Input
+                id="trip-name"
+                maxLength={60}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+              />
+              <Button type="submit" disabled={pending || !name.trim()}>
+                {pending ? <Spinner /> : null}
+                Save
+              </Button>
+            </div>
+          </form>
+          <div className="mt-4 flex items-center justify-between border-t border-[var(--border)] pt-4">
+            <span className="text-sm text-[var(--text-dim)]">
+              Delete this trip for everyone
+            </span>
+            <Button
+              size="sm"
+              variant="danger"
+              disabled={pending}
+              onClick={() => setConfirmDelete(true)}
+            >
+              <Trash2 className="h-4 w-4" /> Delete
+            </Button>
+          </div>
+          <ErrorText>{error}</ErrorText>
+        </div>
+      ) : null}
+
       <div className="flex items-center justify-between gap-2 px-5 py-3">
         <div>
           <p className="text-xs text-[var(--text-faint)]">Join code</p>
@@ -247,24 +421,54 @@ function TripHeader({ trip, memberCount }: { trip: Trip; memberCount: number }) 
           </Button>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        title={`Delete "${trip.name}"?`}
+        message="This permanently removes the trip and all its expenses and payments for everyone. This can't be undone."
+        confirmLabel="Delete trip"
+        pending={pending}
+        onConfirm={remove}
+        onCancel={() => setConfirmDelete(false)}
+      />
     </Card>
   );
 }
 
 function BalancesCard({
+  tripId,
   balances,
   transfers,
   nameById,
   currency,
   currentMemberId,
 }: {
+  tripId: string;
   balances: Balance[];
   transfers: Transfer[];
   nameById: Record<string, string>;
   currency: string;
   currentMemberId: string | null;
 }) {
+  const router = useRouter();
   const nonZero = balances.filter((b) => Math.abs(b.amount) >= 0.005);
+  const [pending, startTransition] = useTransition();
+  const [confirmTransfer, setConfirmTransfer] = useState<Transfer | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  function markPaid(t: Transfer) {
+    setConfirmTransfer(null);
+    setError(null);
+    startTransition(async () => {
+      const res = await recordSettlement(tripId, {
+        fromMemberId: t.from,
+        toMemberId: t.to,
+        amount: t.amount,
+      });
+      if (res.ok) router.refresh();
+      else setError(res.error);
+    });
+  }
 
   return (
     <Card className="p-5">
@@ -279,9 +483,9 @@ function BalancesCard({
           {transfers.map((t, i) => (
             <li
               key={i}
-              className="flex items-center justify-between rounded-xl bg-[var(--surface-2)] px-4 py-3 text-sm"
+              className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface-2)] px-4 py-3 text-sm"
             >
-              <span className="text-[var(--text-dim)]">
+              <span className="min-w-0 text-[var(--text-dim)]">
                 <span className="font-semibold text-[var(--text)]">
                   {nameById[t.from] ?? "?"}
                 </span>{" "}
@@ -290,8 +494,18 @@ function BalancesCard({
                   {nameById[t.to] ?? "?"}
                 </span>
               </span>
-              <span className="tnum font-semibold text-[var(--accent)]">
-                {formatMoney(t.amount, currency)}
+              <span className="flex shrink-0 items-center gap-2">
+                <span className="tnum font-semibold text-[var(--accent)]">
+                  {formatMoney(t.amount, currency)}
+                </span>
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={pending}
+                  onClick={() => setConfirmTransfer(t)}
+                >
+                  <Check className="h-4 w-4" /> Mark paid
+                </Button>
               </span>
             </li>
           ))}
@@ -301,6 +515,23 @@ function BalancesCard({
           </li>
         </ul>
       )}
+
+      <ErrorText>{error}</ErrorText>
+
+      <ConfirmDialog
+        open={confirmTransfer !== null}
+        title="Record this payment?"
+        message={
+          confirmTransfer
+            ? `${nameById[confirmTransfer.from] ?? "?"} paid ${nameById[confirmTransfer.to] ?? "?"} ${formatMoney(confirmTransfer.amount, currency)}. This updates everyone's balances.`
+            : undefined
+        }
+        confirmLabel="Record payment"
+        cancelLabel="Cancel"
+        pending={pending}
+        onConfirm={() => confirmTransfer && markPaid(confirmTransfer)}
+        onCancel={() => setConfirmTransfer(null)}
+      />
 
       {nonZero.length > 0 ? (
         <div className="mt-4 border-t border-[var(--border)] pt-4">
@@ -344,21 +575,88 @@ function BalancesCard({
   );
 }
 
+function PaymentsCard({
+  tripId,
+  settlements,
+  nameById,
+  currency,
+  onDeleteRequest,
+}: {
+  tripId: string;
+  settlements: Settlement[];
+  nameById: Record<string, string>;
+  currency: string;
+  onDeleteRequest: (
+    id: string,
+    label: string,
+    commit: () => Promise<unknown>,
+  ) => void;
+}) {
+  return (
+    <Card className="p-5">
+      <h2 className="mb-3 text-xl font-semibold tracking-tight">Payments</h2>
+      <ul className="space-y-2">
+        {settlements.map((s) => (
+          <li
+            key={s.id}
+            className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface-2)] px-4 py-3 text-sm"
+          >
+            <span className="min-w-0 text-[var(--text-dim)]">
+              <span className="font-semibold text-[var(--text)]">
+                {nameById[s.from_member] ?? "?"}
+              </span>{" "}
+              paid{" "}
+              <span className="font-semibold text-[var(--text)]">
+                {nameById[s.to_member] ?? "?"}
+              </span>
+              {s.note ? (
+                <span className="block truncate text-xs text-[var(--text-faint)]">
+                  {s.note}
+                </span>
+              ) : null}
+            </span>
+            <span className="flex shrink-0 items-center gap-2">
+              <span className="tnum font-semibold text-[var(--pos)]">
+                {formatMoney(s.amount, currency)}
+              </span>
+              <button
+                aria-label="Delete payment"
+                onClick={() =>
+                  onDeleteRequest(s.id, "Payment deleted", () =>
+                    deleteSettlement(tripId, s.id),
+                  )
+                }
+                className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)]"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            </span>
+          </li>
+        ))}
+      </ul>
+    </Card>
+  );
+}
+
 function ExpenseList({
   transactions,
   nameById,
   currency,
   tripId,
+  onEdit,
+  onDeleteRequest,
 }: {
   transactions: Transaction[];
   nameById: Record<string, string>;
   currency: string;
   tripId: string;
+  onEdit: (t: Transaction) => void;
+  onDeleteRequest: (
+    id: string,
+    label: string,
+    commit: () => Promise<unknown>,
+  ) => void;
 }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
-
   if (transactions.length === 0) {
     return (
       <Card className="flex flex-col items-center gap-2 px-5 py-10 text-center">
@@ -369,15 +667,6 @@ function ExpenseList({
         </p>
       </Card>
     );
-  }
-
-  function onDelete(id: string) {
-    setDeletingId(id);
-    startTransition(async () => {
-      await deleteTransaction(tripId, id);
-      setDeletingId(null);
-      router.refresh();
-    });
   }
 
   return (
@@ -396,21 +685,27 @@ function ExpenseList({
               {t.splits.length} people
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="tnum font-semibold text-[var(--text)]">
+          <div className="flex items-center gap-1">
+            <span className="tnum mr-1 font-semibold text-[var(--text)]">
               {formatMoney(t.amount, currency)}
             </span>
             <button
-              aria-label="Delete expense"
-              onClick={() => onDelete(t.id)}
-              disabled={pending && deletingId === t.id}
-              className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)] disabled:opacity-50"
+              aria-label="Edit expense"
+              onClick={() => onEdit(t)}
+              className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--text)]"
             >
-              {pending && deletingId === t.id ? (
-                <Spinner className="h-4 w-4" />
-              ) : (
-                <Trash2 className="h-4 w-4" />
-              )}
+              <Pencil className="h-4 w-4" />
+            </button>
+            <button
+              aria-label="Delete expense"
+              onClick={() =>
+                onDeleteRequest(t.id, "Expense deleted", () =>
+                  deleteTransaction(tripId, t.id),
+                )
+              }
+              className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)]"
+            >
+              <Trash2 className="h-4 w-4" />
             </button>
           </div>
         </div>
@@ -432,6 +727,9 @@ function MembersCard({
   const [newName, setNewName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  const confirmMember = members.find((m) => m.id === confirmId) ?? null;
 
   function add(e: React.FormEvent) {
     e.preventDefault();
@@ -449,6 +747,7 @@ function MembersCard({
   }
 
   function remove(id: string) {
+    setConfirmId(null);
     setError(null);
     startTransition(async () => {
       const res = await removeMember(tripId, id);
@@ -476,7 +775,7 @@ function MembersCard({
             </span>
             <button
               aria-label={`Remove ${m.name}`}
-              onClick={() => remove(m.id)}
+              onClick={() => setConfirmId(m.id)}
               disabled={pending}
               className="pressable rounded-lg p-1.5 text-[var(--text-faint)] transition-colors hover:bg-[color-mix(in_srgb,var(--neg)_10%,transparent)] hover:text-[var(--neg)] disabled:opacity-50"
             >
@@ -488,6 +787,7 @@ function MembersCard({
       <form onSubmit={add} className="flex gap-2">
         <Input
           placeholder="Add a member"
+          maxLength={40}
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
         />
@@ -500,6 +800,14 @@ function MembersCard({
         </Button>
       </form>
       <ErrorText>{error}</ErrorText>
+      <ConfirmDialog
+        open={confirmMember !== null}
+        title={confirmMember ? `Remove ${confirmMember.name}?` : "Remove member?"}
+        message="They'll be removed from this trip. Members tied to existing expenses can't be removed."
+        confirmLabel="Remove"
+        onConfirm={() => confirmId && remove(confirmId)}
+        onCancel={() => setConfirmId(null)}
+      />
     </Card>
   );
 }

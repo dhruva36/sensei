@@ -1,31 +1,15 @@
 import Link from "next/link";
-import { redirect } from "next/navigation";
-import { getTripByCode } from "@/lib/data";
 import { Button, Card } from "@/components/ui";
 
-// Clean share links: /j/ABC123 -> redirects to the trip dashboard.
-export default async function JoinByCode({
-  params,
-}: {
-  params: Promise<{ code: string }>;
-}) {
-  const { code } = await params;
-  const trip = await getTripByCode(code);
-
-  if (trip) redirect(`/trips/${trip.id}`);
-
+export default function NotFound() {
   return (
     <main className="mx-auto flex w-full max-w-md flex-1 flex-col items-center justify-center gap-4 px-5 py-16 text-center">
       <Card className="w-full p-6">
         <h1 className="text-xl font-semibold tracking-tight text-[var(--text)]">
-          Invalid link
+          Page not found
         </h1>
         <p className="mt-2 text-sm text-[var(--text-dim)]">
-          We couldn&apos;t find a trip for code{" "}
-          <span className="tnum font-semibold tracking-widest text-[var(--text)]">
-            {code}
-          </span>
-          .
+          This trip doesn&apos;t exist, or the link is incorrect.
         </p>
         <div className="mt-5 flex justify-center">
           <Link href="/">

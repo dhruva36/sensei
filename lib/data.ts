@@ -2,7 +2,7 @@ import "server-only";
 
 import { getSupabase } from "./supabase/server";
 import { normalizeJoinCode } from "./joinCode";
-import type { Member, Transaction, Trip } from "./types";
+import type { Member, Settlement, Transaction, Trip } from "./types";
 
 /**
  * Postgres `numeric` columns come back from PostgREST as strings. Coerce the
@@ -72,18 +72,45 @@ export async function getTransactions(tripId: string): Promise<Transaction[]> {
   return ((data as Record<string, unknown>[]) ?? []).map(normalizeTransaction);
 }
 
+export async function getSettlements(tripId: string): Promise<Settlement[]> {
+  const supabase = getSupabase();
+  const { data, error } = await supabase
+    .from("settlements")
+    .select("*")
+    .eq("trip_id", tripId)
+    .order("created_at", { ascending: false });
+  if (error) {
+    // The settlements table is an additive migration. If it hasn't been applied
+    // yet, degrade gracefully (no payments) instead of breaking the whole trip.
+    if (error.code === "PGRST205" || error.code === "42P01") return [];
+    throw new Error(error.message);
+  }
+  // numeric(12,2) comes back as a string from PostgREST — coerce to a number.
+  return ((data as Record<string, unknown>[]) ?? []).map((r) => ({
+    id: r.id as string,
+    trip_id: r.trip_id as string,
+    from_member: r.from_member as string,
+    to_member: r.to_member as string,
+    amount: Number(r.amount),
+    note: (r.note as string | null) ?? null,
+    created_at: r.created_at as string,
+  }));
+}
+
 export type FullTrip = {
   trip: Trip;
   members: Member[];
   transactions: Transaction[];
+  settlements: Settlement[];
 };
 
 export async function getFullTrip(tripId: string): Promise<FullTrip | null> {
   const trip = await getTrip(tripId);
   if (!trip) return null;
-  const [members, transactions] = await Promise.all([
+  const [members, transactions, settlements] = await Promise.all([
     getMembers(tripId),
     getTransactions(tripId),
+    getSettlements(tripId),
   ]);
-  return { trip, members, transactions };
+  return { trip, members, transactions, settlements };
 }

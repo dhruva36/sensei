@@ -1,11 +1,14 @@
-import type { Balance, Transaction, Transfer } from "./types";
+import type { Balance, Settlement, Transaction, Transfer } from "./types";
 import { computeOwed } from "./splits";
-import { fromCents } from "./money";
+import { fromCents, toCents } from "./money";
 
 /**
  * Net balance per member, in integer cents.
  * Positive = the group owes this member (they fronted more than their share).
  * Negative = this member owes the group.
+ *
+ * Recorded `settlements` (real payments) are folded in: paying down a debt moves
+ * the payer toward zero and reduces what the recipient is still owed.
  *
  * Every member id passed in appears in the result (even with a zero balance),
  * so the UI can render everyone.
@@ -13,6 +16,7 @@ import { fromCents } from "./money";
 export function computeBalances(
   transactions: Transaction[],
   memberIds: string[],
+  settlements: Settlement[] = [],
 ): Balance[] {
   const cents = new Map<string, number>();
   for (const id of memberIds) cents.set(id, 0);
@@ -32,6 +36,14 @@ export function computeBalances(
     for (const o of owed) {
       cents.set(o.memberId, (cents.get(o.memberId) ?? 0) - o.owedCents);
     }
+  }
+
+  // A recorded payment from a debtor to a creditor: the debtor (negative) moves
+  // up toward zero; the creditor (positive) is owed that much less.
+  for (const s of settlements) {
+    const amt = toCents(s.amount);
+    cents.set(s.from_member, (cents.get(s.from_member) ?? 0) + amt);
+    cents.set(s.to_member, (cents.get(s.to_member) ?? 0) - amt);
   }
 
   return memberIds.map((id) => ({
@@ -86,8 +98,12 @@ export function minimizeTransfers(balances: Balance[]): Transfer[] {
 }
 
 /** Convenience: balances + settlement in one call. */
-export function settle(transactions: Transaction[], memberIds: string[]) {
-  const balances = computeBalances(transactions, memberIds);
+export function settle(
+  transactions: Transaction[],
+  memberIds: string[],
+  settlements: Settlement[] = [],
+) {
+  const balances = computeBalances(transactions, memberIds, settlements);
   const transfers = minimizeTransfers(balances);
   return { balances, transfers };
 }

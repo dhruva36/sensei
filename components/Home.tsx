@@ -55,6 +55,7 @@ export default function Home() {
               <Input
                 id="name"
                 autoFocus
+                maxLength={40}
                 placeholder="e.g. Dhruva"
                 value={draftName}
                 onChange={(e) => setDraftName(e.target.value)}
@@ -192,6 +193,7 @@ function CreateTripCard({
           <Label htmlFor="trip">Trip name</Label>
           <Input
             id="trip"
+            maxLength={60}
             placeholder="Goa 2026"
             value={tripName}
             onChange={(e) => setTripName(e.target.value)}

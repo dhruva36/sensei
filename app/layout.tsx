@@ -22,11 +22,34 @@ const mono = Geist_Mono({
   subsets: ["latin"],
 });
 
+// Resolve a base URL for absolute OG/Twitter image links. Vercel sets VERCEL_URL
+// at build/runtime; fall back to an explicit SITE_URL, then localhost in dev.
+const siteUrl =
+  process.env.NEXT_PUBLIC_SITE_URL ||
+  (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : null) ||
+  "http://localhost:3000";
+
+const title = "Sensei — Split trip expenses, settle up fast";
+const description =
+  "Track shared trip expenses with friends and settle up in the fewest possible payments.";
+
 export const metadata: Metadata = {
-  title: "Sensei — Split trip expenses, settle up fast",
-  description:
-    "Track shared trip expenses with friends and settle up in the fewest possible payments.",
+  metadataBase: new URL(siteUrl),
+  title,
+  description,
   applicationName: "Sensei",
+  openGraph: {
+    title,
+    description,
+    siteName: "Sensei",
+    type: "website",
+    url: "/",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title,
+    description,
+  },
 };
 
 export default function RootLayout({

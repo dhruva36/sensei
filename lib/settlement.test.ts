@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { computeOwed } from "./splits";
 import { computeBalances, minimizeTransfers, settle } from "./settlement";
 import { distributeCents } from "./money";
-import type { Transaction } from "./types";
+import type { Settlement, Transaction } from "./types";
 
 function txn(partial: Partial<Transaction> & Pick<Transaction, "amount" | "paid_by" | "split_type" | "splits">): Transaction {
   return {
@@ -13,6 +13,34 @@ function txn(partial: Partial<Transaction> & Pick<Transaction, "amount" | "paid_
     ...partial,
   } as Transaction;
 }
+
+function settlement(
+  from: string,
+  to: string,
+  amount: number,
+): Settlement {
+  return {
+    id: `${from}-${to}-${amount}`,
+    trip_id: "trip",
+    from_member: from,
+    to_member: to,
+    amount,
+    note: null,
+    created_at: "",
+  };
+}
+
+// Alice pays 90 for an equal dinner among a, b, c -> a:+60, b:-30, c:-30.
+const dinner = txn({
+  amount: 90,
+  paid_by: "a",
+  split_type: "equal",
+  splits: [
+    { id: "1", transaction_id: "t", member_id: "a", weight: 1 },
+    { id: "2", transaction_id: "t", member_id: "b", weight: 1 },
+    { id: "3", transaction_id: "t", member_id: "c", weight: 1 },
+  ],
+});
 
 describe("distributeCents", () => {
   it("splits evenly with no remainder", () => {
@@ -128,6 +156,50 @@ describe("minimizeTransfers", () => {
     ];
     const transfers = minimizeTransfers(balances);
     expect(transfers).toEqual([{ from: "a", to: "c", amount: 10 }]);
+  });
+});
+
+describe("recorded settlements", () => {
+  const ids = ["a", "b", "c"];
+
+  it("a full payment of a suggested transfer zeroes both parties", () => {
+    // b owes a 30; record b -> a 30.
+    const { balances, transfers } = settle([dinner], ids, [
+      settlement("b", "a", 30),
+    ]);
+    const byId = Object.fromEntries(balances.map((x) => [x.memberId, x.amount]));
+    expect(byId.b).toBeCloseTo(0);
+    expect(byId.a).toBeCloseTo(30); // a still owed 30 by c
+    expect(byId.c).toBeCloseTo(-30);
+    // Only c -> a remains.
+    expect(transfers).toEqual([{ from: "c", to: "a", amount: 30 }]);
+  });
+
+  it("paying everyone off leaves nothing outstanding", () => {
+    const { transfers } = settle([dinner], ids, [
+      settlement("b", "a", 30),
+      settlement("c", "a", 30),
+    ]);
+    expect(transfers).toEqual([]);
+  });
+
+  it("a partial payment leaves the residual transfer", () => {
+    // b owes a 30; pay only 10 -> b still owes 20.
+    const { balances } = settle([dinner], ids, [settlement("b", "a", 10)]);
+    const byId = Object.fromEntries(balances.map((x) => [x.memberId, x.amount]));
+    expect(byId.b).toBeCloseTo(-20);
+    expect(byId.a).toBeCloseTo(50); // owed 60, received 10
+  });
+
+  it("over-payment flips the sign (payer becomes a creditor)", () => {
+    // b owes a 30 but pays 50 -> b is now owed 20; a was owed 60, nets to 10.
+    const { balances } = settle([dinner], ids, [settlement("b", "a", 50)]);
+    const byId = Object.fromEntries(balances.map((x) => [x.memberId, x.amount]));
+    expect(byId.b).toBeCloseTo(20);
+    expect(byId.a).toBeCloseTo(10);
+    expect(byId.c).toBeCloseTo(-30);
+    // Net stays zero.
+    expect(balances.reduce((s, x) => s + x.amount, 0)).toBeCloseTo(0);
   });
 });
 

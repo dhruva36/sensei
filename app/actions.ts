@@ -52,6 +52,35 @@ export async function createTrip(input: {
   return { ok: false, error: "Could not generate a unique join code. Try again." };
 }
 
+/** Rename a trip. */
+export async function renameTrip(
+  tripId: string,
+  rawName: string,
+): Promise<ActionResult> {
+  const name = rawName.trim();
+  if (!name) return { ok: false, error: "Please enter a trip name." };
+
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("trips")
+    .update({ name })
+    .eq("id", tripId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true };
+}
+
+/** Delete a trip and everything in it (cascades to members/expenses/payments). */
+export async function deleteTrip(tripId: string): Promise<ActionResult> {
+  const supabase = getSupabase();
+  const { error } = await supabase.from("trips").delete().eq("id", tripId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath("/");
+  return { ok: true };
+}
+
 /** Look up a trip by its join code (used by the Join flow). */
 export async function joinTripByCode(
   code: string,
@@ -125,6 +154,26 @@ export async function removeMember(
     };
   }
 
+  // Also block removal if they appear in any recorded payment — the delete
+  // cascade would silently erase that settlement history.
+  const { count: payFrom } = await supabase
+    .from("settlements")
+    .select("id", { count: "exact", head: true })
+    .eq("trip_id", tripId)
+    .eq("from_member", memberId);
+  const { count: payTo } = await supabase
+    .from("settlements")
+    .select("id", { count: "exact", head: true })
+    .eq("trip_id", tripId)
+    .eq("to_member", memberId);
+
+  if ((payFrom ?? 0) > 0 || (payTo ?? 0) > 0) {
+    return {
+      ok: false,
+      error: "This member has recorded payments. Delete those first.",
+    };
+  }
+
   const { error } = await supabase
     .from("members")
     .delete()
@@ -193,6 +242,66 @@ export async function addTransaction(
   return { ok: true };
 }
 
+export async function updateTransaction(
+  tripId: string,
+  transactionId: string,
+  input: {
+    description: string;
+    amount: number;
+    paidBy: string;
+    splitType: SplitType;
+    parts: SplitPart[];
+  },
+): Promise<ActionResult> {
+  const description = input.description.trim();
+  if (!description) return { ok: false, error: "Please add a description." };
+  if (!(input.amount > 0))
+    return { ok: false, error: "Amount must be greater than zero." };
+  if (!input.paidBy) return { ok: false, error: "Choose who paid." };
+  if (input.parts.length === 0)
+    return { ok: false, error: "Select at least one person to split with." };
+
+  // Validate the split up front so we never persist an inconsistent expense.
+  try {
+    computeOwed(input.amount, input.splitType, input.parts);
+  } catch (e) {
+    return { ok: false, error: (e as Error).message };
+  }
+
+  const supabase = getSupabase();
+  const { error: txnErr } = await supabase
+    .from("transactions")
+    .update({
+      description,
+      amount: input.amount,
+      paid_by: input.paidBy,
+      split_type: input.splitType,
+    })
+    .eq("id", transactionId)
+    .eq("trip_id", tripId);
+  if (txnErr) return { ok: false, error: txnErr.message };
+
+  // Replace the splits wholesale (delete + reinsert) to match the new shape.
+  const { error: delErr } = await supabase
+    .from("transaction_splits")
+    .delete()
+    .eq("transaction_id", transactionId);
+  if (delErr) return { ok: false, error: delErr.message };
+
+  const rows = input.parts.map((p) => ({
+    transaction_id: transactionId,
+    member_id: p.memberId,
+    weight: p.weight,
+  }));
+  const { error: splitErr } = await supabase
+    .from("transaction_splits")
+    .insert(rows);
+  if (splitErr) return { ok: false, error: splitErr.message };
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true };
+}
+
 export async function deleteTransaction(
   tripId: string,
   transactionId: string,
@@ -202,6 +311,53 @@ export async function deleteTransaction(
     .from("transactions")
     .delete()
     .eq("id", transactionId)
+    .eq("trip_id", tripId);
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true };
+}
+
+/** Record that one member actually paid another to settle up. */
+export async function recordSettlement(
+  tripId: string,
+  input: {
+    fromMemberId: string;
+    toMemberId: string;
+    amount: number;
+    note?: string;
+  },
+): Promise<ActionResult> {
+  if (!input.fromMemberId || !input.toMemberId)
+    return { ok: false, error: "Choose who paid whom." };
+  if (input.fromMemberId === input.toMemberId)
+    return { ok: false, error: "A payment needs two different people." };
+  if (!(input.amount > 0))
+    return { ok: false, error: "Amount must be greater than zero." };
+
+  const supabase = getSupabase();
+  const { error } = await supabase.from("settlements").insert({
+    trip_id: tripId,
+    from_member: input.fromMemberId,
+    to_member: input.toMemberId,
+    amount: input.amount,
+    note: input.note?.trim() || null,
+  });
+  if (error) return { ok: false, error: error.message };
+
+  revalidatePath(`/trips/${tripId}`);
+  return { ok: true };
+}
+
+export async function deleteSettlement(
+  tripId: string,
+  settlementId: string,
+): Promise<ActionResult> {
+  const supabase = getSupabase();
+  const { error } = await supabase
+    .from("settlements")
+    .delete()
+    .eq("id", settlementId)
     .eq("trip_id", tripId);
   if (error) return { ok: false, error: error.message };
 
