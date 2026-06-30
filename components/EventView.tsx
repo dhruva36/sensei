@@ -10,6 +10,7 @@ import {
   Pencil,
   Plus,
   Receipt,
+  Route,
   Settings,
   Trash2,
   UserPlus,
@@ -456,6 +457,14 @@ function BalancesCard({
   const [confirmTransfer, setConfirmTransfer] = useState<Transfer | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Your own net position, surfaced as a headline so the first thing you see is
+  // what this settles to for you.
+  const myBalance = currentMemberId
+    ? balances.find((b) => b.memberId === currentMemberId)?.amount ?? 0
+    : 0;
+  const myOwed = myBalance > 0.005;
+  const myOwes = myBalance < -0.005;
+
   function markPaid(t: Transfer) {
     setConfirmTransfer(null);
     setError(null);
@@ -471,8 +480,30 @@ function BalancesCard({
   }
 
   return (
-    <Card className="p-5">
-      <h2 className="mb-3 text-xl font-semibold tracking-tight">Settle up</h2>
+    <Card className="border-[color-mix(in_srgb,var(--accent)_24%,var(--border))] bg-[color-mix(in_srgb,var(--accent)_6%,var(--surface))] p-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <h2 className="flex items-center gap-2 text-xl font-semibold tracking-tight">
+          <Route className="h-[18px] w-[18px] text-[var(--accent)]" />
+          Settle up
+        </h2>
+        {myOwed || myOwes ? (
+          <div className="text-right">
+            <div className="text-[11px] leading-tight text-[var(--text-dim)]">
+              {myOwed ? "You get back" : "You owe"}
+            </div>
+            <div
+              className={
+                myOwed
+                  ? "tnum text-lg font-semibold text-[var(--pos)]"
+                  : "tnum text-lg font-semibold text-[var(--neg)]"
+              }
+            >
+              {myOwed ? "+" : "−"}
+              {formatMoney(Math.abs(myBalance), currency)}
+            </div>
+          </div>
+        ) : null}
+      </div>
 
       {transfers.length === 0 ? (
         <p className="rounded-xl bg-[color-mix(in_srgb,var(--pos)_10%,var(--surface))] px-4 py-6 text-center text-sm font-medium text-[var(--pos)]">
@@ -483,7 +514,7 @@ function BalancesCard({
           {transfers.map((t, i) => (
             <li
               key={i}
-              className="flex items-center justify-between gap-3 rounded-xl bg-[var(--surface-2)] px-4 py-3 text-sm"
+              className="flex items-center justify-between gap-3 rounded-xl border border-[var(--border)] bg-[var(--surface)] px-4 py-3 text-sm"
             >
               <span className="min-w-0 text-[var(--text-dim)]">
                 <span className="font-semibold text-[var(--text)]">
@@ -503,6 +534,7 @@ function BalancesCard({
                   variant="secondary"
                   disabled={pending}
                   onClick={() => setConfirmTransfer(t)}
+                  className="whitespace-nowrap border-[var(--accent)] bg-[var(--accent)] text-white hover:border-[color-mix(in_srgb,var(--accent)_88%,black)] hover:bg-[color-mix(in_srgb,var(--accent)_88%,black)]"
                 >
                   <Check className="h-4 w-4" /> Mark paid
                 </Button>

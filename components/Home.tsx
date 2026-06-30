@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Plane, Users, ArrowRight, Check, X, ChevronRight } from "lucide-react";
+import { Route, Users, ArrowRight, Check, X, ChevronRight } from "lucide-react";
 import { useUsername } from "@/lib/identity";
 import { useRecentEvents, forgetEvent } from "@/lib/recentEvents";
 import { createEvent, joinEventByCode } from "@/app/actions";
@@ -185,7 +185,7 @@ function CreateEventCard({
   return (
     <Card className="p-5">
       <div className="mb-3 flex items-center gap-2">
-        <Plane className="h-4 w-4 text-[var(--accent)]" />
+        <Route className="h-4 w-4 text-[var(--accent)]" />
         <h2 className="text-lg font-semibold">Start a new event</h2>
       </div>
       <form onSubmit={submit} className="flex flex-col gap-3">

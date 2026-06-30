@@ -1,18 +1,18 @@
 @import "tailwindcss";
 
-/* ---- design tokens : warm-paper light theme (matches the tn_politics dashboard) ---- */
+/* ---- design tokens : warm-paper light theme — "Sage" direction ---- */
 :root {
-  --bg: #f3f2ec;           /* warm paper page */
-  --surface: #fbfaf6;      /* card — near white, warm */
-  --surface-2: #e9e7df;    /* sunken / hover */
+  --bg: #f1f1ea;           /* warm paper page (cooled a touch for sage) */
+  --surface: #fbfbf6;      /* card — near white, warm */
+  --surface-2: #e7e8df;    /* sunken / hover */
   --ink: #16150f;          /* warm near-black ink */
   --text: #16150f;         /* warm ink text */
   --text-dim: #57554c;     /* muted */
   --text-faint: #8c897e;   /* faint */
   --border: rgba(22, 21, 15, 0.12);
   --border-strong: rgba(22, 21, 15, 0.22);
-  --accent: #1c5cff;       /* subtle blue highlight */
-  --accent-dim: rgba(28, 92, 255, 0.12);
+  --accent: #4f7355;       /* muted sage — interactive accent (replaces blue) */
+  --accent-dim: rgba(79, 115, 85, 0.15);
   --gold: #a9791f;         /* deeper gold, legible on paper */
 
   /* settlement semantics (app-specific) */
